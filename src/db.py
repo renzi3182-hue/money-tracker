@@ -47,7 +47,9 @@ def _engine(url: str | None = None) -> sa.Engine:
     url = url or (None if remote() else LOCAL_URL)
     if url and url.startswith("sqlite:///"):
         Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
-    engine = (st.connection("sql", url=url) if url else st.connection("sql")).engine
+    # pool_pre_ping: Neon chiude le connessioni quando si addormenta, senza ping la prima query dopo fallisce
+    engine = (st.connection("sql", url=url, pool_pre_ping=True) if url
+              else st.connection("sql", pool_pre_ping=True)).engine
     _create(engine)
     return engine
 

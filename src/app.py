@@ -33,10 +33,10 @@ if db.secret("auth"):
     USER = allowed
     st.sidebar.caption(st.user.email)
     st.sidebar.button("Esci", on_click=st.logout)
-elif db.remote():  # DB online senza login: dati esposti a chiunque, meglio fermarsi
+elif db.remote() and not db.secret("private_app"):  # DB online senza login: dati esposti a chiunque, meglio fermarsi
     st.error("Manca la sezione [auth] nei secrets: login obbligatorio con il database online.")
     st.stop()
-else:
+else:  # locale, o app privata su Community Cloud (private_app = true: l'accesso lo filtra Streamlit)
     USER = "me"
 
 

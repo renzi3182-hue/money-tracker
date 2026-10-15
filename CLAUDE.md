@@ -27,14 +27,16 @@ Anteprima: configurazione `money-tracker` in `.claude/launch.json` (porta 8510).
 ## Messa online (Streamlit Community Cloud)
 Credenziali e chiavi le inserisce l'utente, mai Claude. Deploy e push solo su sua conferma.
 
-1. **Neon**: crea progetto gratuito su neon.tech, copia la connection string (Dashboard → Connect). Diventa `postgresql+psycopg2://USER:PASSWORD@HOST/DBNAME?sslmode=require` (aggiungere `+psycopg2` dopo `postgresql`).
-2. **Client OAuth Google**: Google Cloud Console → APIs & Services → OAuth consent screen (External, utente di test = la propria email) → Credentials → Create OAuth client ID, tipo Web application. Authorized redirect URI: `https://<nome-app>.streamlit.app/oauth2callback` (per provare in locale anche `http://localhost:8510/oauth2callback`). Copia client ID e secret.
-3. **Secrets**: in locale `code/money-tracker/.streamlit/secrets.toml` (gitignored, letto quando si lancia da `code/money-tracker` come fa `launch.json`); su Community Cloud incollare lo stesso testo in App settings → Secrets.
+Tutorial passo passo per l'utente: [DEPLOY.md](DEPLOY.md). In breve:
+- Repo separato e **privato** `renzi3182-hue/money-tracker` (remote `money-tracker` del monorepo), radice = questa cartella. Aggiornamento: `git subtree split --prefix=code/money-tracker -b money-tracker-deploy` e `git push money-tracker money-tracker-deploy:main`. Repo privato = app privata su Community Cloud (una sola consentita gratis; macro-cycle-tracker è pubblica).
+- Community Cloud: main file `src/app.py`, Python 3.12. Working directory = root del repo, `config.toml` deve stare in `.streamlit/` alla root: col repo separato è già così.
+- Fase 1, senza login nell'app: Secrets con `private_app = true` e `[connections.sql] url` (connection string Neon così com'è, `postgresql://` usa psycopg2). Protezione = sharing privato di Community Cloud.
+- Fase 2, login Google: aggiungere ai Secrets `allowed_email` e `[auth]`, poi su Neon `UPDATE movements SET user_id = '<email>' WHERE user_id = 'me'`. Client OAuth: Google Cloud Console → OAuth consent screen (External, utente di test = la propria email) → Credentials → OAuth client ID, Web application, redirect URI `https://<nome-app>.streamlit.app/oauth2callback` (in locale `http://localhost:8510/oauth2callback`).
    ```toml
    allowed_email = "tua@gmail.com"
 
    [connections.sql]
-   url = "postgresql+psycopg2://USER:PASSWORD@HOST/DBNAME?sslmode=require"
+   url = "postgresql://USER:PASSWORD@HOST/neondb?sslmode=require"
 
    [auth]
    redirect_uri = "https://<nome-app>.streamlit.app/oauth2callback"
@@ -43,5 +45,3 @@ Credenziali e chiavi le inserisce l'utente, mai Claude. Deploy e push solo su su
    client_secret = "..."
    server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
    ```
-4. **Community Cloud**: New app dal repo GitHub, branch `master`, main file `code/money-tracker/src/app.py`. Prima del deploy verificare che Cloud trovi `requirements.txt` e `.streamlit/config.toml`: li cerca nella cartella del main file (`src/`) e nella root del repo, non in `code/money-tracker/`.
-5. I movimenti locali (`user_id = "me"`) non migrano da soli: online si parte vuoti.
