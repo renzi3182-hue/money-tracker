@@ -1,6 +1,6 @@
 # money-tracker
 
-Dashboard delle finanze personali: spese giornaliere, settimanali e mensili, entrate e tasso di risparmio, con grafici. Movimenti inseriti a mano dalla barra laterale (anche il metodo di pagamento). Secondo software del brand Soft Investing (identità visiva: `../../concepts/brand-soft-investing.md`). Login previsto più avanti.
+Dashboard delle finanze personali: spese giornaliere, settimanali e mensili, entrate e tasso di risparmio, con grafici. Tab Mese, Settimana e Giorno con i movimenti del periodo: bottone "Aggiungi movimento" (finestra `st.dialog`, anche metodo di pagamento) e spunta + bottone per eliminarli. Secondo software del brand Soft Investing (identità visiva: `../../concepts/brand-soft-investing.md`). Login previsto più avanti.
 
 ## Stack
 Python 3.12, Streamlit, SQLite (`data/money.db`, fuori da git), pandas, Altair.

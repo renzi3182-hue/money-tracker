@@ -28,53 +28,91 @@ def delta(now: float, before: float) -> str | None:
     return None if before == 0 else f"{(now - before) / before * 100:+.0f}% vs periodo prima"
 
 
+def bump():
+    """Cambia la chiave delle tabelle: dopo un'aggiunta o un'eliminazione le spunte non finiscono sulla riga sbagliata."""
+    st.session_state.version = st.session_state.get("version", 0) + 1
+
+
 # --- nuovo movimento -------------------------------------------------------------------------------
-with st.sidebar:
-    st.markdown("### Nuovo movimento")
+@st.dialog("Nuovo movimento")
+def new_movement():
     kind = st.segmented_control("Tipo", db.KINDS, default="spesa", format_func=str.capitalize) or "spesa"
-    with st.form("new", clear_on_submit=True, border=False):
+    with st.form("new", border=False):
         day = st.date_input("Data", value=date.today(), max_value=date.today(), format="DD/MM/YYYY")
         amount = st.number_input("Importo (€)", min_value=0.0, step=1.0, format="%.2f")
         category = st.selectbox("Categoria", db.EXPENSE_CATEGORIES if kind == "spesa" else db.INCOME_CATEGORIES)
         method = st.selectbox("Metodo di pagamento" if kind == "spesa" else "Ricevuto con", db.METHODS)
         note = st.text_input("Nota", placeholder="facoltativa")
-        if st.form_submit_button("Aggiungi", type="primary", use_container_width=True):
+        if st.form_submit_button("Salva", type="primary", use_container_width=True):
             if amount <= 0:
                 st.error("Inserisci un importo maggiore di zero.")
             else:
                 db.add(day, kind, amount, category, method, note, user_id=USER)
-                st.toast(f"{kind.capitalize()} di {euro(amount)} salvata")
+                st.session_state.toast = f"{kind.capitalize()} di {euro(amount)} salvata"
+                bump()
+                st.rerun()
+
+
+def add_button(key: str):
+    if st.button("＋ Aggiungi movimento", key=key, type="primary"):
+        new_movement()
+
+
+def movement_table(view: pd.DataFrame, key: str):
+    """Movimenti con spunta Elimina e bottone per cancellare quelli spuntati."""
+    if view.empty:
+        st.caption("Nessun movimento nel periodo.")
+        return
+    edited = st.data_editor(
+        view.assign(elimina=False), hide_index=True, use_container_width=True,
+        key=f"{key}_{st.session_state.get('version', 0)}",
+        disabled=[c for c in view.columns if c != "elimina"],
+        column_order=["elimina", "date", "kind", "amount", "category", "method", "note"],
+        column_config={"date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                       "kind": "Tipo", "amount": st.column_config.NumberColumn("Importo €", format="%.2f"),
+                       "category": "Categoria", "method": "Metodo", "note": "Nota",
+                       "elimina": st.column_config.CheckboxColumn("Elimina")})
+    to_delete = edited.loc[edited["elimina"], "id"].tolist()
+    if st.button(f"Elimina {len(to_delete)} selezionati", key=f"del_{key}", disabled=not to_delete):
+        db.delete(to_delete, user_id=USER)
+        st.session_state.toast = f"{len(to_delete)} movimenti eliminati"
+        bump()
+        st.rerun()
+
+
+if msg := st.session_state.pop("toast", None):
+    st.toast(msg)
 
 df = db.load(USER)
 today = date.today()
 
 st.title("Le tue finanze")
-st.caption("Spese, entrate e risparmio. Inserisci i movimenti dalla barra a sinistra.")
+st.caption("Spese, entrate e risparmio del mese, della settimana e di oggi.")
 
 if df.empty:
-    st.info("Nessun movimento ancora. Aggiungi la prima spesa o entrata dalla barra a sinistra.")
+    st.info("Nessun movimento ancora. Aggiungi la prima spesa o entrata.")
+    add_button("add_empty")
     st.stop()
 
-# --- KPI -------------------------------------------------------------------------------------------
-cols = st.columns(3)
-for col, (label, freq) in zip(cols, (("Speso oggi", "D"), ("Questa settimana", "W"), ("Questo mese", "M"))):
-    now, before = stats.totals(df, today, freq)
-    col.metric(label, euro(now), delta(now, before), delta_color="inverse")
-month = stats.monthly_balance(df, today, 1).iloc[-1]
-cols = st.columns(3)
-cols[0].metric("Entrate del mese", euro(month["income"]))
-cols[1].metric("Risparmio del mese", euro(month["saving"]),
-               None if pd.isna(month["rate"]) else f"{month['rate']:.0f}% delle entrate")
-cols[2].metric("Media al giorno nel mese", euro(month["expense"] / today.day))
+accent, muted = hex_color(mode, "accent"), hex_color(mode, "muted")
+NAMES = {"D": "oggi", "W": "questa settimana", "M": "questo mese"}
+tab_m, tab_w, tab_d, tab_balance, tab_list = st.tabs(
+    ["Mese", "Settimana", "Giorno", "Entrate e risparmio", "Tutti i movimenti"])
 
-tab_trend, tab_balance, tab_list = st.tabs(["Spese", "Entrate e risparmio", "Movimenti"])
-
-# --- spese -----------------------------------------------------------------------------------------
-with tab_trend:
-    label = st.segmented_control("Periodo", list(stats.PERIODS), default="Mese") or "Mese"
-    freq = stats.PERIODS[label]
+# --- mese / settimana / giorno ---------------------------------------------------------------------
+def period_tab(freq: str):
     start = stats.period_start(today, freq)
-    accent, muted = hex_color(mode, "accent"), hex_color(mode, "muted")
+    spent, before = stats.totals(df, today, freq)
+    income = stats.total(df, start, today, "entrata")
+    cols = st.columns(3)
+    cols[0].metric(f"Speso {NAMES[freq]}", euro(spent), delta(spent, before), delta_color="inverse")
+    cols[1].metric("Entrate", euro(income))
+    cols[2].metric("Saldo", euro(income - spent),
+                   f"{(income - spent) / income * 100:.0f}% delle entrate" if income else None)
+
+    st.markdown(f"**Movimenti di {NAMES[freq]}**")
+    add_button(f"add_{freq}")
+    movement_table(df[df["date"].dt.date >= start], f"tbl_{freq}")
 
     hist = stats.history(df, today, freq)
     hist["label"] = hist["period"].dt.strftime({"D": "%d/%m", "W": "%d/%m", "M": "%m/%y"}[freq])
@@ -90,10 +128,9 @@ with tab_trend:
     st.caption("Linea tratteggiata: media del periodo.")
 
     left, right = st.columns(2)
-    period_name = {"D": "oggi", "W": "questa settimana", "M": "questo mese"}[freq]
     for col, column, title in ((left, "category", "Per categoria"), (right, "method", "Per metodo di pagamento")):
         with col:
-            st.markdown(f"**{title}** · {period_name}")
+            st.markdown(f"**{title}** · {NAMES[freq]}")
             br = stats.breakdown(df, start, today, column)
             if br.empty:
                 st.caption("Nessuna spesa nel periodo.")
@@ -116,16 +153,22 @@ with tab_trend:
                              alt.Tooltip("amount:Q", title="€", format=",.2f")])
             st.altair_chart(chart(c, mode, 280), use_container_width=True)
 
-    st.markdown("**Questo mese contro il mese scorso** · spesa cumulata giorno per giorno")
-    cum = stats.cumulative_month(df, today)
-    line = alt.Chart(cum).mark_line(strokeWidth=2.5, interpolate="step-after").encode(
-        x=alt.X("day:Q", title="Giorno del mese", scale=alt.Scale(domain=[1, 31])),
-        y=alt.Y("amount:Q", title="€"),
-        color=alt.Color("serie:N", title=None, scale=alt.Scale(domain=["Questo mese", "Mese scorso"],
-                                                               range=[accent, muted])),
-        tooltip=[alt.Tooltip("serie:N", title=" "), alt.Tooltip("day:Q", title="Giorno"),
-                 alt.Tooltip("amount:Q", title="Cumulato €", format=",.2f")])
-    st.altair_chart(chart(line, mode, 280), use_container_width=True)
+    if freq == "M":
+        st.markdown("**Questo mese contro il mese scorso** · spesa cumulata giorno per giorno")
+        cum = stats.cumulative_month(df, today)
+        line = alt.Chart(cum).mark_line(strokeWidth=2.5, interpolate="step-after").encode(
+            x=alt.X("day:Q", title="Giorno del mese", scale=alt.Scale(domain=[1, 31])),
+            y=alt.Y("amount:Q", title="€"),
+            color=alt.Color("serie:N", title=None, scale=alt.Scale(domain=["Questo mese", "Mese scorso"],
+                                                                   range=[accent, muted])),
+            tooltip=[alt.Tooltip("serie:N", title=" "), alt.Tooltip("day:Q", title="Giorno"),
+                     alt.Tooltip("amount:Q", title="Cumulato €", format=",.2f")])
+        st.altair_chart(chart(line, mode, 280), use_container_width=True)
+
+
+for tab, freq in ((tab_m, "M"), (tab_w, "W"), (tab_d, "D")):
+    with tab:
+        period_tab(freq)
 
 # --- entrate e risparmio ---------------------------------------------------------------------------
 with tab_balance:
@@ -164,15 +207,5 @@ with tab_list:
         view = view[view["category"].isin(cats)]
     if meths:
         view = view[view["method"].isin(meths)]
-    view = view.assign(elimina=False)
-    edited = st.data_editor(
-        view, hide_index=True, use_container_width=True, disabled=[c for c in view.columns if c != "elimina"],
-        column_order=["elimina", "date", "kind", "amount", "category", "method", "note"],
-        column_config={"date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                       "kind": "Tipo", "amount": st.column_config.NumberColumn("Importo €", format="%.2f"),
-                       "category": "Categoria", "method": "Metodo", "note": "Nota",
-                       "elimina": st.column_config.CheckboxColumn("Elimina")})
-    to_delete = edited.loc[edited["elimina"], "id"].tolist()
-    if st.button(f"Elimina {len(to_delete)} movimenti selezionati", disabled=not to_delete):
-        db.delete(to_delete, user_id=USER)
-        st.rerun()
+    add_button("add_all")
+    movement_table(view, "tbl_all")
