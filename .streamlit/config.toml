@@ -1,0 +1,74 @@
+# Tema Soft Investing (design system "Soft Glass", artifact NFSg6TDRqqdXEJp3C7hGTx): chiaro e scuro, segue il sistema.
+# Stessi valori di src/ui/theme.py (TOKENS), usati dai blocchi HTML.
+[theme]
+baseRadius = "18px"
+buttonRadius = "12px"
+showWidgetBorder = true
+showSidebarBorder = true
+font = "'Plus Jakarta Sans':https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+headingFont = "'Plus Jakarta Sans':https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+codeFont = "'DM Mono':https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap"
+baseFontSize = 15
+baseFontWeight = 400
+codeFontSize = "13px"
+headingFontSizes = ["34px", "24px", "18px", "16px", "14px", "12px"]
+headingFontWeights = [800, 800, 600, 600, 600, 600]
+linkUnderline = false
+
+[theme.dark]
+base = "dark"
+primaryColor = "#5EEAD4"
+backgroundColor = "#0F1720"
+secondaryBackgroundColor = "#172330"
+codeBackgroundColor = "#172330"
+textColor = "#EAF2F5"
+linkColor = "#5EEAD4"
+borderColor = "#25384A"
+codeTextColor = "#EAF2F5"
+greenColor = "#7BE0A4"
+redColor = "#FF9DA7"
+yellowColor = "#FFC878"
+orangeColor = "#FFA86B"
+blueColor = "#8AB4FF"
+violetColor = "#C4A8FF"
+grayColor = "#8FA6B2"
+chartCategoricalColors = ["#5EEAD4", "#8AB4FF", "#FFC878", "#FF9DA7", "#7BE0A4", "#C4A8FF", "#8FA6B2"]
+dataframeBorderColor = "#25384A"
+dataframeHeaderBackgroundColor = "#172330"
+
+[theme.dark.sidebar]
+backgroundColor = "#0F1720"
+secondaryBackgroundColor = "#172330"
+textColor = "#EAF2F5"
+borderColor = "#25384A"
+
+[theme.light]
+base = "light"
+primaryColor = "#0A7F70"
+backgroundColor = "#F3F8F8"
+secondaryBackgroundColor = "#FFFFFF"
+codeBackgroundColor = "#E6F0F1"
+textColor = "#0F1720"
+linkColor = "#0A7F70"
+borderColor = "#D3E2E6"
+codeTextColor = "#0F1720"
+greenColor = "#177A4D"
+redColor = "#C0394B"
+yellowColor = "#8F5A05"
+orangeColor = "#A8530F"
+blueColor = "#2F6DB5"
+violetColor = "#6B4FB8"
+grayColor = "#4F6472"
+chartCategoricalColors = ["#0A7F70", "#2F6DB5", "#8F5A05", "#C0394B", "#177A4D", "#6B4FB8", "#4F6472"]
+dataframeBorderColor = "#D3E2E6"
+dataframeHeaderBackgroundColor = "#E6F0F1"
+
+[theme.light.sidebar]
+backgroundColor = "#F3F8F8"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#0F1720"
+borderColor = "#D3E2E6"
+
+# Niente statistiche d'uso inviate a Streamlit dal browser dei visitatori.
+[browser]
+gatherUsageStats = false
