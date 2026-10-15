@@ -1,4 +1,4 @@
-"""Movimenti (spese ed entrate). Online Postgres (Neon) via st.connection("sql") con l'URL in
+"""Movimenti (spese ed entrate) e investimenti (strumenti e operazioni). Online Postgres (Neon) via st.connection("sql") con l'URL in
 secrets [connections.sql]; senza quel secret SQLite locale in data/money.db. Ogni query filtra per user_id."""
 from datetime import date
 from functools import cache
@@ -15,6 +15,9 @@ EXPENSE_CATEGORIES = ["Spesa alimentare", "Casa", "Bollette", "Trasporti", "Rist
                       "Abbonamenti", "Abbigliamento", "Altro"]
 INCOME_CATEGORIES = ["Stipendio", "Extra", "Rimborso", "Altro"]
 METHODS = ["Carta", "Contanti", "Bonifico", "Satispay", "PayPal"]
+# Il tipo decide le tasse: ETF = redditi di capitale (i guadagni non usano lo zainetto), titoli di Stato al 12,5%
+ASSET_KINDS = ["ETF", "ETC", "Azione", "Obbligazione", "Titolo di Stato"]
+SIDES = ["acquisto", "vendita"]
 
 _meta = sa.MetaData()
 movements = sa.Table(
@@ -27,6 +30,27 @@ movements = sa.Table(
     sa.Column("category", sa.Text, nullable=False),
     sa.Column("method", sa.Text, nullable=False),
     sa.Column("note", sa.Text, nullable=False, server_default=""),
+)
+
+# Prezzo attuale (aggiornato a mano) e peso obiettivo per il ribilanciatore: uno per strumento
+instruments = sa.Table(
+    "instruments", _meta,
+    sa.Column("user_id", sa.Text, primary_key=True),
+    sa.Column("name", sa.Text, primary_key=True),
+    sa.Column("kind", sa.Text, nullable=False),
+    sa.Column("price", sa.Float, nullable=False),
+    sa.Column("target", sa.Float, nullable=False, server_default="0"),
+)
+operations = sa.Table(
+    "operations", _meta,
+    sa.Column("id", sa.Integer, primary_key=True),
+    sa.Column("user_id", sa.Text, nullable=False),
+    sa.Column("date", sa.Date, nullable=False),
+    sa.Column("name", sa.Text, nullable=False),
+    sa.Column("side", sa.Text, sa.CheckConstraint("side IN ('acquisto', 'vendita')"), nullable=False),
+    sa.Column("quantity", sa.Float, sa.CheckConstraint("quantity > 0"), nullable=False),
+    sa.Column("price", sa.Float, sa.CheckConstraint("price > 0"), nullable=False),
+    sa.Column("fees", sa.Float, sa.CheckConstraint("fees >= 0"), nullable=False, server_default="0"),
 )
 
 
@@ -79,3 +103,44 @@ def load(user_id: str = "me", url: str | None = None) -> pd.DataFrame:
         df = pd.read_sql(query, con)
     df["date"] = pd.to_datetime(df["date"])
     return df
+
+
+def add_operation(day: date, name: str, side: str, quantity: float, price: float, fees: float = 0.0,
+                  kind: str | None = None, user_id: str = "me", url: str | None = None) -> None:
+    """Salva l'operazione; al primo acquisto di uno strumento lo crea (serve kind) col prezzo dell'operazione."""
+    name = name.strip()
+    with _engine(url).begin() as con:
+        known = con.execute(sa.select(instruments.c.name).where(instruments.c.user_id == user_id,
+                                                                instruments.c.name == name)).first()
+        if not known:
+            con.execute(instruments.insert().values(user_id=user_id, name=name, kind=kind, price=price))
+        con.execute(operations.insert().values(user_id=user_id, date=day, name=name, side=side, quantity=quantity,
+                                               price=price, fees=round(fees, 2)))
+
+
+def delete_operations(ids: list[int], user_id: str = "me", url: str | None = None) -> None:
+    """Cancella le operazioni e gli strumenti rimasti senza operazioni."""
+    with _engine(url).begin() as con:
+        con.execute(operations.delete().where(operations.c.id.in_(ids), operations.c.user_id == user_id))
+        used = sa.select(operations.c.name).where(operations.c.user_id == user_id)
+        con.execute(instruments.delete().where(instruments.c.user_id == user_id, instruments.c.name.not_in(used)))
+
+
+def update_instruments(rows: pd.DataFrame, user_id: str = "me", url: str | None = None) -> None:
+    """rows: colonna name più le colonne da aggiornare (price e/o target)."""
+    cols = [c for c in rows.columns if c in ("price", "target")]
+    with _engine(url).begin() as con:
+        for r in rows.to_dict("records"):
+            con.execute(instruments.update().where(instruments.c.user_id == user_id, instruments.c.name == r["name"])
+                        .values({c: float(r[c]) for c in cols}))
+
+
+def load_investments(user_id: str = "me", url: str | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """(operazioni dalla più recente, strumenti per nome)."""
+    o, i = operations.c, instruments.c
+    with _engine(url).connect() as con:
+        ops = pd.read_sql(sa.select(o.id, o.date, o.name, o.side, o.quantity, o.price, o.fees)
+                          .where(o.user_id == user_id).order_by(o.date.desc(), o.id.desc()), con)
+        ins = pd.read_sql(sa.select(i.name, i.kind, i.price, i.target).where(i.user_id == user_id).order_by(i.name), con)
+    ops["date"] = pd.to_datetime(ops["date"])
+    return ops, ins
