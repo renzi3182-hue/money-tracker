@@ -30,13 +30,13 @@ Credenziali e chiavi le inserisce l'utente, mai Claude. Deploy e push solo su su
 Tutorial passo passo per l'utente: [DEPLOY.md](DEPLOY.md). In breve:
 - Repo separato e **privato** `renzi3182-hue/money-tracker` (remote `money-tracker` del monorepo), radice = questa cartella. Aggiornamento: `git subtree split --prefix=code/money-tracker -b money-tracker-deploy` e `git push money-tracker money-tracker-deploy:main`. Repo privato = app privata su Community Cloud (una sola consentita gratis; macro-cycle-tracker è pubblica).
 - Community Cloud: main file `src/app.py`, Python 3.12. Working directory = root del repo, `config.toml` deve stare in `.streamlit/` alla root: col repo separato è già così.
-- Fase 1, senza login nell'app: Secrets con `private_app = true` e `[connections.sql] url` (connection string Neon così com'è, `postgresql://` usa psycopg2). Protezione = sharing privato di Community Cloud.
+- Fase 1, senza login nell'app: Secrets con `private_app = true` e `[connections.sql] url` (connection string Neon con `postgresql+psycopg2://`: con `postgresql://` SQLAlchemy 2.1 cerca `psycopg` 3, non installato). Protezione = sharing privato di Community Cloud.
 - Fase 2, login Google: aggiungere ai Secrets `allowed_email` e `[auth]`, poi su Neon `UPDATE movements SET user_id = '<email>' WHERE user_id = 'me'`. Client OAuth: Google Cloud Console → OAuth consent screen (External, utente di test = la propria email) → Credentials → OAuth client ID, Web application, redirect URI `https://<nome-app>.streamlit.app/oauth2callback` (in locale `http://localhost:8510/oauth2callback`).
    ```toml
    allowed_email = "tua@gmail.com"
 
    [connections.sql]
-   url = "postgresql://USER:PASSWORD@HOST/neondb?sslmode=require"
+   url = "postgresql+psycopg2://USER:PASSWORD@HOST/neondb?sslmode=require"
 
    [auth]
    redirect_uri = "https://<nome-app>.streamlit.app/oauth2callback"

@@ -14,7 +14,7 @@ A differenza di macro-cycle-tracker il repo è **privato**: un repo privato prod
 2. Crea un progetto: nome `money-tracker`, Postgres ultima versione. Regione: **AWS US East (N. Virginia)**, la più vicina ai server di Community Cloud (che sono negli USA): ogni pagina fa una query, così è più veloce. Se preferisci i dati in Europa scegli Frankfurt, l'app sarà un po' più lenta.
 3. Nella dashboard del progetto premi **Connect**, lascia database `neondb` e ruolo predefinito, copia la connection string. Ha questa forma:
    `postgresql://neondb_owner:PASSWORD@ep-xxxx.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
-4. Tienila da parte, non incollarla in chat né in file che finiscono su GitHub. La tabella la crea l'app da sola al primo avvio.
+4. Nei Secrets va con `postgresql+psycopg2://` all'inizio al posto di `postgresql://` (SQLAlchemy 2.1 altrimenti cerca il driver `psycopg` 3, non installato). Tienila da parte, non incollarla in chat né in file che finiscono su GitHub. La tabella la crea l'app da sola al primo avvio.
 
 Nota: il piano gratuito "addormenta" il database dopo 5 minuti senza uso. Il primo caricamento dopo una pausa impiega un secondo in più, poi va normale.
 
@@ -56,7 +56,7 @@ git push money-tracker money-tracker-deploy:main
      private_app = true
 
      [connections.sql]
-     url = "postgresql://neondb_owner:PASSWORD@ep-xxxx.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+     url = "postgresql+psycopg2://neondb_owner:PASSWORD@ep-xxxx.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
      ```
 5. **Deploy**. Il primo avvio installa le dipendenze, 2-3 minuti.
 
@@ -76,7 +76,8 @@ git push money-tracker money-tracker-deploy:main
 ## Se qualcosa va storto
 - **"Manca la sezione [auth] nei secrets"**: manca `private_app = true` nei Secrets (App settings → Secrets, poi salva: l'app si riavvia).
 - **`OperationalError` / `password authentication failed`**: connection string copiata male. Rigenerala da Neon (Connect) e reincollala.
-- **`ModuleNotFoundError`**: controlla che il repo abbia `requirements.txt` nella root (lo ha, se il push del passo 2 è andato).
+- **`ModuleNotFoundError` su `import psycopg`**: nell'URL dei Secrets manca `+psycopg2` dopo `postgresql`.
+- **Altri `ModuleNotFoundError`**: controlla che il repo abbia `requirements.txt` nella root (lo ha, se il push del passo 2 è andato).
 - **Errori dopo un aggiornamento**: menu ⋮ → **Reboot app**. Community Cloud a volte tiene in memoria i moduli vecchi.
 - **Log**: in basso a destra nell'app, "Manage app", mostra l'output del server.
 
