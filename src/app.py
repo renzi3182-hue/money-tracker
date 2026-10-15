@@ -389,9 +389,9 @@ def period_tab(freq: str):
             if column == "category":
                 if len(br) > 7:  # la palette ha 7 colori: oltre le prime 6 categorie si somma in "Altre"
                     br = pd.concat([br.head(6), pd.DataFrame({"category": ["Altre"], "amount": [br["amount"][6:].sum()]})])
-                c =alt.Chart(br).mark_arc(innerRadius=70, cornerRadius=4, padAngle=0.01).encode(
+                c = alt.Chart(br).mark_arc(innerRadius=70, cornerRadius=4, padAngle=0.01).encode(
                     theta="amount:Q",
-                    color=alt.Color("category:N", title=None, sort=br["category"].tolist(), legend=alt.Legend(orient="right"),
+                    color=alt.Color("category:N", title=None, sort=br["category"].tolist(), legend=alt.Legend(orient="bottom", columns=2),
                                     scale=alt.Scale(range=categorical(mode))),
                     tooltip=[alt.Tooltip("category:N", title="Categoria"),
                              alt.Tooltip("amount:Q", title="€", format=",.2f")])

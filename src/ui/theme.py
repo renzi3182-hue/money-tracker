@@ -47,4 +47,10 @@ def page_css(mode: str) -> str:
     return ("<style>:root { " + " ".join(f"--{k}: {v};" for k, v in t.items()) + " }"
             "[data-testid='stMetricValue'] { font-family: 'DM Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }"
             "[data-testid='stMetric'] { background: var(--surface); border: 1px solid var(--line); border-radius: 18px;"
-            " padding: 16px 20px; box-shadow: var(--shadow); }</style>")
+            " padding: 16px 20px; box-shadow: var(--shadow); }"
+            # Telefono (sotto 640px Streamlit impila le colonne): meno spazio vuoto, metriche impilate più basse
+            "@media (max-width: 640px) {"
+            " [data-testid='stMainBlockContainer'] { padding: 4rem 1rem 3rem !important; }"
+            " h1 { font-size: 28px !important; }"
+            " [data-testid='stMetric'] { padding: 10px 14px; border-radius: 14px; }"
+            " [data-testid='stMetricValue'] { font-size: 1.6rem !important; } }</style>")
