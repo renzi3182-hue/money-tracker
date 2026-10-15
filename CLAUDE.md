@@ -1,6 +1,6 @@
 # money-tracker
 
-Dashboard delle finanze personali: spese giornaliere, settimanali e mensili, entrate e tasso di risparmio, con grafici. Tab Mese, Settimana e Giorno con i movimenti del periodo: bottone "Aggiungi movimento" (finestra `st.dialog`, anche metodo di pagamento) e spunta + bottone per eliminarli. Secondo software del brand Soft Investing (identità visiva: `../../concepts/brand-soft-investing.md`). Online su Streamlit Community Cloud con login Google (solo un'email ammessa) e dati su Neon Postgres; in locale senza secrets resta SQLite senza login.
+Dashboard delle finanze personali: spese giornaliere, settimanali e mensili, entrate e tasso di risparmio, con grafici. Tab Mese, Settimana e Giorno con i movimenti del periodo: bottone "Aggiungi movimento" (finestra `st.dialog`, anche metodo di pagamento) e spunta + bottone per eliminarli. Secondo software del brand Soft Investing (identità visiva: `../../concepts/brand-soft-investing.md`). Online su Streamlit Community Cloud, pubblica senza login (`private_app = true`, protezione = solo il link, scelta dell'utente) con dati su Neon Postgres; login Google opzionale (`[auth]`: una sola email, o chiunque con `allowed_email = "*"`, ognuno coi suoi dati); in locale senza secrets resta SQLite senza login.
 
 ## Stack
 Python 3.12, Streamlit (`st.connection("sql")`, `st.login`), SQLAlchemy, Postgres su Neon online / SQLite in locale (`data/money.db`, fuori da git), pandas, Altair.
@@ -28,7 +28,7 @@ Anteprima: configurazione `money-tracker` in `.claude/launch.json` (porta 8510).
 Credenziali e chiavi le inserisce l'utente, mai Claude. Deploy e push solo su sua conferma.
 
 Tutorial passo passo per l'utente: [DEPLOY.md](DEPLOY.md). In breve:
-- Repo separato e **privato** `renzi3182-hue/money-tracker` (remote `money-tracker` del monorepo), radice = questa cartella. Aggiornamento: `git subtree split --prefix=code/money-tracker -b money-tracker-deploy` e `git push money-tracker money-tracker-deploy:main`. Repo privato = app privata su Community Cloud (una sola consentita gratis; macro-cycle-tracker è pubblica).
+- Repo separato `renzi3182-hue/money-tracker` (remote `money-tracker` del monorepo), radice = questa cartella. Aggiornamento: `git subtree split --prefix=code/money-tracker -b money-tracker-deploy` e `git push money-tracker money-tracker-deploy:main`. Repo privato = app privata su Community Cloud; per l'app pubblica senza login (scelta dell'utente: solo lui ha il link) repo e app pubblici, passi in DEPLOY.md.
 - Community Cloud: main file `src/app.py`, Python 3.12. Working directory = root del repo, `config.toml` deve stare in `.streamlit/` alla root: col repo separato è già così.
 - Fase 1, senza login nell'app: Secrets con `private_app = true` e `[connections.sql] url` (connection string Neon con `postgresql+psycopg2://`: con `postgresql://` SQLAlchemy 2.1 cerca `psycopg` 3, non installato). Protezione = sharing privato di Community Cloud.
 - Fase 2, login Google: aggiungere ai Secrets `allowed_email` e `[auth]`, poi su Neon `UPDATE movements SET user_id = '<email>' WHERE user_id = 'me'`. Client OAuth: Google Cloud Console → OAuth consent screen (External, utente di test = la propria email) → Credentials → OAuth client ID, Web application, redirect URI `https://<nome-app>.streamlit.app/oauth2callback` (in locale `http://localhost:8510/oauth2callback`).

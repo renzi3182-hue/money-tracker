@@ -87,3 +87,16 @@ Quando aggiungiamo `st.login` (sezione `[auth]` e `allowed_email` nei Secrets, p
 ```sql
 UPDATE movements SET user_id = 'tua@gmail.com' WHERE user_id = 'me';
 ```
+
+## Renderla pubblica senza login (come macro-cycle-tracker)
+L'app si apre a chiunque abbia il link, senza login, e mostra i tuoi dati Neon. Il codice non cambia: basta `private_app = true` nei Secrets (già presente dalla fase 1), che fa partire l'app senza login col database online.
+
+1. Nei Secrets **non** mettere `[auth]`: con `[auth]` l'app torna a chiedere il login Google.
+2. Rendi pubblico il repo (un repo privato produce un'app privata). Nel repo ci sono solo codice e segnaposto, niente dati né chiavi:
+   ```bash
+   gh repo edit renzi3182-hue/money-tracker --visibility public --accept-visibility-change-consequences
+   ```
+3. Su share.streamlit.io: app → **Share** → "This app is public and searchable".
+4. Apri il link in una finestra in incognito: deve aprirsi la dashboard senza chiedere accessi.
+
+Da sapere: la protezione è solo il link. Chi lo ottiene vede i tuoi movimenti e può aggiungerne o cancellarne. Le app pubbliche di Community Cloud possono finire nei motori di ricerca, e l'indirizzo `<nome-app>.streamlit.app` si indovina se il nome è ovvio: scegline uno poco prevedibile. Per richiudere: Share → "Only specific people", oppure aggiungi `[auth]` nei Secrets.

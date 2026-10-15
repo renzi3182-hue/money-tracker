@@ -19,18 +19,20 @@ st.logo(str(LOGO_DIR / ("logo-mark.svg" if mode == "dark" else "logo-mark-light.
 st.html(page_css(mode))
 
 # --- accesso ---------------------------------------------------------------------------------------
-# Con [auth] nei secrets: login Google e solo allowed_email entra. Senza secrets: uso locale, utente "me".
+# Con [auth] nei secrets: login Google; entra solo allowed_email, o chiunque con allowed_email = "*"
+# (ognuno vede solo i suoi movimenti, user_id = email). Senza secrets: uso locale, utente "me".
 if db.secret("auth"):
     if not st.user.is_logged_in:
         st.title("Le tue finanze")
         st.button("Accedi con Google", type="primary", on_click=st.login)
         st.stop()
     allowed = (db.secret("allowed_email") or "").strip().lower()
-    if not allowed or (st.user.email or "").lower() != allowed:
+    email = (st.user.email or "").strip().lower()
+    if not email or not allowed or (allowed != "*" and email != allowed):
         st.error("Questo account non ha accesso.")
         st.button("Esci", on_click=st.logout)
         st.stop()
-    USER = allowed
+    USER = email
     st.sidebar.caption(st.user.email)
     st.sidebar.button("Esci", on_click=st.logout)
 elif db.remote() and not db.secret("private_app"):  # DB online senza login: dati esposti a chiunque, meglio fermarsi
