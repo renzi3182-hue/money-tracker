@@ -1,11 +1,14 @@
-"""Movimenti (spese ed entrate) in SQLite. user_id c'è già: col login basta passare l'utente vero."""
-import sqlite3
+"""Movimenti (spese ed entrate). Online Postgres (Neon) via st.connection("sql") con l'URL in
+secrets [connections.sql]; senza quel secret SQLite locale in data/money.db. Ogni query filtra per user_id."""
 from datetime import date
+from functools import cache
 from pathlib import Path
 
 import pandas as pd
+import sqlalchemy as sa
+import streamlit as st
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "money.db"
+LOCAL_URL = f"sqlite:///{Path(__file__).resolve().parent.parent / 'data' / 'money.db'}"
 
 KINDS = ["spesa", "entrata"]
 EXPENSE_CATEGORIES = ["Spesa alimentare", "Casa", "Bollette", "Trasporti", "Ristoranti", "Svago", "Salute",
@@ -13,40 +16,64 @@ EXPENSE_CATEGORIES = ["Spesa alimentare", "Casa", "Bollette", "Trasporti", "Rist
 INCOME_CATEGORIES = ["Stipendio", "Extra", "Rimborso", "Altro"]
 METHODS = ["Carta", "Contanti", "Bonifico", "Satispay", "PayPal"]
 
-_SCHEMA = """CREATE TABLE IF NOT EXISTS movements (
-    id INTEGER PRIMARY KEY,
-    user_id TEXT NOT NULL DEFAULT 'me',
-    date TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('spesa', 'entrata')),
-    amount REAL NOT NULL CHECK (amount > 0),
-    category TEXT NOT NULL,
-    method TEXT NOT NULL,
-    note TEXT NOT NULL DEFAULT ''
-)"""
+_meta = sa.MetaData()
+movements = sa.Table(
+    "movements", _meta,
+    sa.Column("id", sa.Integer, primary_key=True),
+    sa.Column("user_id", sa.Text, nullable=False, server_default="me"),
+    sa.Column("date", sa.Date, nullable=False),
+    sa.Column("kind", sa.Text, sa.CheckConstraint("kind IN ('spesa', 'entrata')"), nullable=False),
+    sa.Column("amount", sa.Float, sa.CheckConstraint("amount > 0"), nullable=False),
+    sa.Column("category", sa.Text, nullable=False),
+    sa.Column("method", sa.Text, nullable=False),
+    sa.Column("note", sa.Text, nullable=False, server_default=""),
+)
 
 
-def _conn(path: Path = DB_PATH) -> sqlite3.Connection:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(path)
-    con.execute(_SCHEMA)
-    return con
+def secret(key: str):
+    """Valore da secrets.toml, None se manca il file o la chiave."""
+    try:
+        return st.secrets.get(key)
+    except FileNotFoundError:
+        return None
+
+
+def remote() -> bool:
+    return bool((secret("connections") or {}).get("sql"))
+
+
+def _engine(url: str | None = None) -> sa.Engine:
+    """url esplicito (test) > secrets [connections.sql] > SQLite locale."""
+    url = url or (None if remote() else LOCAL_URL)
+    if url and url.startswith("sqlite:///"):
+        Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
+    engine = (st.connection("sql", url=url) if url else st.connection("sql")).engine
+    _create(engine)
+    return engine
+
+
+@cache
+def _create(engine: sa.Engine) -> None:
+    _meta.create_all(engine)
 
 
 def add(day: date, kind: str, amount: float, category: str, method: str, note: str = "",
-        user_id: str = "me", path: Path = DB_PATH) -> None:
-    with _conn(path) as con:
-        con.execute("INSERT INTO movements (user_id, date, kind, amount, category, method, note) VALUES (?,?,?,?,?,?,?)",
-                    (user_id, day.isoformat(), kind, round(amount, 2), category, method, note.strip()))
+        user_id: str = "me", url: str | None = None) -> None:
+    with _engine(url).begin() as con:
+        con.execute(movements.insert().values(user_id=user_id, date=day, kind=kind, amount=round(amount, 2),
+                                              category=category, method=method, note=note.strip()))
 
 
-def delete(ids: list[int], user_id: str = "me", path: Path = DB_PATH) -> None:
-    with _conn(path) as con:
-        con.executemany("DELETE FROM movements WHERE id = ? AND user_id = ?", [(i, user_id) for i in ids])
+def delete(ids: list[int], user_id: str = "me", url: str | None = None) -> None:
+    with _engine(url).begin() as con:
+        con.execute(movements.delete().where(movements.c.id.in_(ids), movements.c.user_id == user_id))
 
 
-def load(user_id: str = "me", path: Path = DB_PATH) -> pd.DataFrame:
-    with _conn(path) as con:
-        df = pd.read_sql("SELECT id, date, kind, amount, category, method, note FROM movements WHERE user_id = ? "
-                         "ORDER BY date DESC, id DESC", con, params=(user_id,))
+def load(user_id: str = "me", url: str | None = None) -> pd.DataFrame:
+    c = movements.c
+    query = (sa.select(c.id, c.date, c.kind, c.amount, c.category, c.method, c.note)
+             .where(c.user_id == user_id).order_by(c.date.desc(), c.id.desc()))
+    with _engine(url).connect() as con:
+        df = pd.read_sql(query, con)
     df["date"] = pd.to_datetime(df["date"])
     return df

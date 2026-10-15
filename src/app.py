@@ -12,12 +12,32 @@ from src import db, stats
 from src.ui.theme import categorical, chart, hex_color, page_css
 
 LOGO_DIR = Path(__file__).resolve().parent.parent / "assets"
-USER = "me"  # ponytail: utente unico finché non arriva il login
 
 st.set_page_config(page_title="Soft Investing", page_icon=str(LOGO_DIR / "logo-mark.svg"), layout="wide")
 mode = st.context.theme.type or "dark"
 st.logo(str(LOGO_DIR / ("logo-mark.svg" if mode == "dark" else "logo-mark-light.svg")), size="large")
 st.html(page_css(mode))
+
+# --- accesso ---------------------------------------------------------------------------------------
+# Con [auth] nei secrets: login Google e solo allowed_email entra. Senza secrets: uso locale, utente "me".
+if db.secret("auth"):
+    if not st.user.is_logged_in:
+        st.title("Le tue finanze")
+        st.button("Accedi con Google", type="primary", on_click=st.login)
+        st.stop()
+    allowed = (db.secret("allowed_email") or "").strip().lower()
+    if not allowed or (st.user.email or "").lower() != allowed:
+        st.error("Questo account non ha accesso.")
+        st.button("Esci", on_click=st.logout)
+        st.stop()
+    USER = allowed
+    st.sidebar.caption(st.user.email)
+    st.sidebar.button("Esci", on_click=st.logout)
+elif db.remote():  # DB online senza login: dati esposti a chiunque, meglio fermarsi
+    st.error("Manca la sezione [auth] nei secrets: login obbligatorio con il database online.")
+    st.stop()
+else:
+    USER = "me"
 
 
 def euro(x: float) -> str:

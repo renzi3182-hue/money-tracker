@@ -51,10 +51,10 @@ def test_monthly_balance_and_cumulative():
 
 
 def test_db_roundtrip(tmp_path):
-    path = tmp_path / "m.db"
-    db.add(TODAY, "spesa", 12.345, "Casa", "Carta", " pane ", path=path)
-    db.add(TODAY, "spesa", 5, "Casa", "Carta", user_id="altro", path=path)
-    df = db.load(path=path)
+    url = f"sqlite:///{tmp_path / 'm.db'}"
+    db.add(TODAY, "spesa", 12.345, "Casa", "Carta", " pane ", url=url)
+    db.add(TODAY, "spesa", 5, "Casa", "Carta", user_id="altro", url=url)
+    df = db.load(url=url)
     assert df[["amount", "note"]].values.tolist() == [[12.35, "pane"]]
-    db.delete(df["id"].tolist(), path=path)
-    assert db.load(path=path).empty and len(db.load("altro", path=path)) == 1
+    db.delete(df["id"].tolist(), url=url)
+    assert db.load(url=url).empty and len(db.load("altro", url=url)) == 1
