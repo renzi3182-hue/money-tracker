@@ -81,17 +81,36 @@ def add_button(key: str):
         new_movement()
 
 
-def checked_table(view: pd.DataFrame, key: str, order: list[str], config: dict, delete, noun: str, empty: str):
-    """Tabella con spunta Elimina e bottone per cancellare le righe spuntate (delete riceve gli id)."""
+WEEKDAYS = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+
+
+def day_header(day: date, part: pd.DataFrame) -> str:
+    name = {0: "Oggi", 1: "Ieri"}.get((today - day).days, WEEKDAYS[day.weekday()])
+    spent = part.loc[part["kind"] == "spesa", "amount"].sum()
+    income = part.loc[part["kind"] == "entrata", "amount"].sum()
+    totals = " · ".join(t for t in (spent and f"speso {euro(spent)}", income and f"entrate {euro(income)}") if t)
+    return f"#### {name} {day:%d/%m/%Y}\n" + (f"<span style='opacity:.6'>{totals}</span>" if totals else "")
+
+
+def checked_table(view: pd.DataFrame, key: str, order: list[str], config: dict, delete, noun: str, empty: str,
+                  by_day: bool = False):
+    """Tabella con spunta Elimina e bottone per cancellare le righe spuntate (delete riceve gli id).
+    by_day: una tabella per giorno, con giorno della settimana e totali come intestazione."""
     if view.empty:
         st.caption(empty)
         return
-    edited = st.data_editor(
-        view.assign(elimina=False), hide_index=True, use_container_width=True,
-        key=f"{key}_{st.session_state.get('version', 0)}",
-        disabled=[c for c in view.columns if c != "elimina"], column_order=["elimina", *order],
-        column_config={**config, "elimina": st.column_config.CheckboxColumn("Elimina")})
-    to_delete = edited.loc[edited["elimina"], "id"].tolist()
+    version = st.session_state.get("version", 0)
+    groups = view.groupby(view["date"].dt.date, sort=False) if by_day else [(None, view)]
+    to_delete = []
+    for day, part in groups:
+        if day is not None:
+            st.markdown(day_header(day, part), unsafe_allow_html=True)
+        edited = st.data_editor(
+            part.assign(elimina=False), hide_index=True, use_container_width=True, key=f"{key}_{day}_{version}",
+            disabled=[c for c in part.columns if c != "elimina"],
+            column_order=["elimina", *(c for c in order if not (by_day and c == "date"))],
+            column_config={**config, "elimina": st.column_config.CheckboxColumn("Elimina")})
+        to_delete += edited.loc[edited["elimina"], "id"].tolist()
     if st.button(f"Elimina {len(to_delete)} selezionati", key=f"del_{key}", disabled=not to_delete):
         delete(to_delete, user_id=USER)
         st.session_state.toast = f"{len(to_delete)} {noun} eliminat{'e' if noun == 'operazioni' else 'i'}"
@@ -104,7 +123,7 @@ def movement_table(view: pd.DataFrame, key: str):
                   {"date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                    "kind": "Tipo", "amount": st.column_config.NumberColumn("Importo €", format="%.2f"),
                    "category": "Categoria", "method": "Metodo", "note": "Nota"}, db.delete, "movimenti",
-                  "Nessun movimento nel periodo.")
+                  "Nessun movimento nel periodo.", by_day=True)
 
 
 if msg := st.session_state.pop("toast", None):
