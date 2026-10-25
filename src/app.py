@@ -184,6 +184,59 @@ def fire_tab(capital0: float):
                "inflazione, costi e tasse: Prudente 2%, Bilanciato 3,5%, Aggressivo 5% l'anno in media. Sono ipotesi, "
                "non previsioni, e non è consulenza finanziaria.")
 
+# --- interesse composto ----------------------------------------------------------------------------
+def interest_tab():
+    whole = lambda x: euro(round(x)).replace(",00", "")
+    pct = lambda x: f"{x:g}".replace(".", ",")
+    st.markdown("**Quanto diventano i tuoi risparmi nel tempo**")
+    st.caption("Con versamenti mensili, tasse e inflazione. L'interesse composto fa maturare interessi anche sugli "
+               "interessi: la differenza con quello semplice cresce molto con gli anni.")
+    c = st.columns(4)
+    principal = c[0].number_input("Capitale iniziale (€)", min_value=0.0, value=10000.0, step=1000.0, format="%.0f")
+    monthly = c[1].number_input("Versamento mensile (€)", min_value=0.0, value=200.0, step=50.0, format="%.0f")
+    rate = c[2].number_input("Rendimento annuo %", min_value=0.0, max_value=30.0, value=5.0, step=0.25)
+    inflation = c[3].number_input("Inflazione annua %", min_value=0.0, max_value=20.0, value=2.0, step=0.25,
+                                  help="Per il valore reale: quanto potere d'acquisto di oggi avrai.")
+    c = st.columns(3)
+    years = c[0].slider("Anni", 1, 60, 20)
+    freq = c[1].segmented_control("Capitalizzazione", list(stats.COMPOUNDING), default="Annuale", required=True)
+    tax = c[2].segmented_control("Tassa sugli interessi", [0.0, 12.5, 26.0], default=26.0, required=True,
+                                 format_func=lambda x: "Nessuna" if x == 0 else f"{pct(x)}%",
+                                 help="Italia: 26% su ETF e conti, 12,5% sui titoli di Stato.")
+    growth = stats.interest_schedule(principal, monthly, rate, years, stats.COMPOUNDING[freq], inflation, tax)
+    last = growth.iloc[-1]
+    doubling = stats.years_to_double(rate)
+    m = st.columns(3)
+    m[0].metric("Valore finale", whole(last["Composto"]), f"+{whole(last['Composto'] - last['Semplice'])} vs semplice")
+    m[1].metric("Totale versato", whole(last["Versato"]))
+    m[2].metric("Netto, in euro di oggi", whole(last["Composto netto reale"]),
+                help=f"Dopo la tassa del {pct(tax)}% sugli interessi e {pct(inflation)}% di inflazione l'anno.")
+    share = last["Interessi composto"] / max(last["Composto"], 1) * 100
+    st.markdown(f"Gli interessi composti valgono **{whole(last['Interessi composto'])}**, il **{share:.0f}%** del valore "
+                "finale." + ("" if doubling is None else f" Con il {pct(rate)}% l'anno il solo capitale raddoppia in "
+                                                        f"**{pct(round(doubling, 1))} anni**."))
+
+    st.markdown(f"**Crescita in {years} anni** · area = versato + interessi composti, tratteggio = stesso piano con "
+                "interesse semplice")
+    long = growth.reset_index().melt(id_vars="Anno", value_vars=["Versato", "Interessi composto"], var_name="voce",
+                                     value_name="v").replace({"voce": {"Interessi composto": "Interessi composti"}})
+    colors = alt.Scale(domain=["Versato", "Interessi composti"], range=[hex_color(mode, "r-defl"), accent])
+    area = alt.Chart(long).mark_area(opacity=0.85, interpolate="monotone").encode(
+        x=alt.X("Anno:Q", title="Anni"), y=alt.Y("v:Q", stack=True, title="Valore (€)", axis=alt.Axis(format="~s")),
+        color=alt.Color("voce:N", scale=colors, title=None), order=alt.Order("voce:N", sort="descending"),
+        tooltip=[alt.Tooltip("Anno:Q"), alt.Tooltip("voce:N", title="Voce"), alt.Tooltip("v:Q", title="€", format=",.0f")])
+    simple = alt.Chart(growth.reset_index()).mark_line(color=hex_color(mode, "r-refl"), strokeDash=[6, 4], strokeWidth=2).encode(
+        x="Anno:Q", y="Semplice:Q", tooltip=[alt.Tooltip("Anno:Q"), alt.Tooltip("Semplice:Q", title="Interesse semplice €", format=",.0f")])
+    st.altair_chart(chart(area + simple, mode, 360), use_container_width=True)
+
+    with st.expander("Tabella anno per anno"):
+        cols = ["Versato", "Semplice", "Composto", "Interessi composto", "Composto netto", "Composto netto reale"]
+        st.dataframe(growth[cols], use_container_width=True,
+                     column_config={c: st.column_config.NumberColumn(f"{c} €", format="%.0f") for c in cols})
+    st.caption("Rendimento costante ogni anno: nella realtà varia, e con le azioni l'ordine dei rendimenti conta. Tassa "
+               "applicata sugli interessi alla fine, come per un ETF ad accumulazione venduto quel giorno. Solo didattico, "
+               "non è consulenza finanziaria.")
+
 # --- investimenti ----------------------------------------------------------------------------------
 NEW = "＋ Nuovo strumento"
 
@@ -235,8 +288,8 @@ def save_button(edited: pd.DataFrame, before: pd.DataFrame, column: str, key: st
 def investments():
     ops, ins = db.load_investments(USER)
     pos, sales = stats.ledger(ops, ins)
-    tab_pf, tab_reb, tab_bag, tab_free = st.tabs(["Portafoglio", "Ribilanciatore", "Zainetto fiscale",
-                                                  "Libertà finanziaria"])
+    tab_pf, tab_reb, tab_bag, tab_free, tab_int = st.tabs(["Portafoglio", "Ribilanciatore", "Zainetto fiscale",
+                                                           "Libertà finanziaria", "Interesse composto"])
     version = st.session_state.get("version", 0)
 
     with tab_pf:
@@ -346,6 +399,9 @@ def investments():
 
     with tab_free:
         fire_tab(pos["value"].sum())
+
+    with tab_int:
+        interest_tab()
 
 
 df = db.load(USER)

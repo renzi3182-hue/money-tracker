@@ -33,7 +33,7 @@ def categorical(mode: str) -> list[str]:
 
 
 def chart(c: alt.Chart, mode: str, height: int = 300) -> alt.Chart:
-    """Stile comune dei grafici, come _chart in macro-cycle-tracker/src/ui/tool_pages.py."""
+    """Stile comune dei grafici."""
     muted, line = hex_color(mode, "muted"), hex_color(mode, "line")
     return (c.properties(height=height, background="transparent")
             .configure_view(strokeWidth=0)

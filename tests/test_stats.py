@@ -1,6 +1,7 @@
 from datetime import date
 
 import pandas as pd
+import pytest
 
 from src import db, stats
 
@@ -75,6 +76,22 @@ def test_fire_paths_without_volatility_and_years_to_target():
     assert stats.years_to_target(paths, 3000).tolist() == [2, 2]
     assert stats.years_to_target(paths, 0).tolist() == [0, 0]
     assert stats.years_to_target(paths, 1e9).tolist() == [float("inf")] * 2
+
+
+def test_simple_and_compound_interest():
+    df = stats.interest_schedule(1000, 0, 10, 2, per_year=1)
+    assert df.loc[2, "Semplice"] == pytest.approx(1200)
+    assert df.loc[2, "Composto"] == pytest.approx(1210)
+
+
+def test_interest_contributions_tax_and_inflation():
+    df = stats.interest_schedule(0, 100, 0, 1, inflation_pct=10, tax_pct=26)
+    assert df.loc[1, "Versato"] == pytest.approx(1200) and df.loc[1, "Composto"] == pytest.approx(1200)
+    assert df.loc[1, "Composto netto reale"] == pytest.approx(1200 / 1.1)
+    taxed = stats.interest_schedule(1000, 0, 10, 1, per_year=1, tax_pct=26)
+    assert taxed.loc[1, "Composto netto"] == pytest.approx(1074)
+    assert stats.years_to_double(7.0) == pytest.approx(10.24, abs=0.01)
+    assert stats.years_to_double(0) is None
 
 
 def _ops(rows):
