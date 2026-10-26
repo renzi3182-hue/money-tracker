@@ -1,0 +1,5 @@
+# Dati finanziari reali e segreti locali: mai caricati, anche con "vercel deploy" da questa cartella
+data/
+.streamlit/secrets.toml
+tests/
+**/__pycache__/

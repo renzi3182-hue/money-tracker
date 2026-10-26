@@ -1,0 +1,9 @@
+{
+  "name": "Soft Investing",
+  "short_name": "Finanze",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F1720",
+  "theme_color": "#0F1720",
+  "icons": [{"src": "logo-mark.svg", "sizes": "any", "type": "image/svg+xml"}]
+}

@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Soft Investing</title>
+<meta name="theme-color" content="#0F1720">
+<link rel="icon" href="logo-mark.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="logo-mark.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+        integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
+<style>
+/* Token del design system Soft Glass: stessi valori di src/ui/theme.py */
+:root {
+  --bg: #0F1720; --surface: #172330; --raised: #1E2D3D; --fg: #EAF2F5; --muted: #8FA6B2; --line: #25384A;
+  --accent: #5EEAD4; --on-accent: #062B26;
+  --r-gold: #7BE0A4; --r-defl: #8AB4FF; --r-refl: #FFC878; --r-stag: #FF9DA7;
+  --c1: #5EEAD4; --c2: #8AB4FF; --c3: #FFC878; --c4: #FF9DA7; --c5: #7BE0A4; --c6: #C4A8FF; --c7: #8FA6B2;
+  --shadow: 0 8px 24px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #F3F8F8; --surface: #FFFFFF; --raised: #E6F0F1; --fg: #0F1720; --muted: #4F6472; --line: #D3E2E6;
+    --accent: #0A7F70; --on-accent: #FFFFFF;
+    --r-gold: #177A4D; --r-defl: #2F6DB5; --r-refl: #8F5A05; --r-stag: #C0394B;
+    --c1: #0A7F70; --c2: #2F6DB5; --c3: #8F5A05; --c4: #C0394B; --c5: #177A4D; --c6: #6B4FB8; --c7: #4F6472;
+    --shadow: 0 4px 16px rgba(15,23,32,.08);
+    color-scheme: light;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 "Plus Jakarta Sans", system-ui, sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 16px 16px 96px; }
+h1 { font-weight: 800; letter-spacing: -.03em; font-size: 28px; margin: 8px 0 4px; }
+h3 { font-size: 15px; font-weight: 600; margin: 24px 0 8px; }
+h3 small, .muted { color: var(--muted); font-weight: 400; }
+.small { font-size: 13px; }
+.num { font-family: "DM Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+header { display: flex; align-items: center; gap: 10px; }
+header img { width: 32px; height: 32px; }
+header .brand { font-weight: 800; letter-spacing: -.03em; font-size: 18px; flex: 1; }
+.hidden { display: none !important; }
+
+button, .btn { font: inherit; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  padding: 9px 16px; cursor: pointer; }
+button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+button:disabled { opacity: .45; cursor: default; }
+button.ghost { background: transparent; }
+input, select { font: inherit; color: var(--fg); background: var(--raised); border: 1px solid var(--line); border-radius: 12px;
+  padding: 9px 12px; width: 100%; min-width: 0; }
+input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+input[type=range] { padding: 0; accent-color: var(--accent); background: none; border: 0; }
+label { display: block; font-size: 13px; color: var(--muted); }
+label > input, label > select, label > .seg { margin-top: 4px; }
+label > .seg { display: flex; width: fit-content; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 3px;
+  gap: 2px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.seg button { border: 0; background: transparent; padding: 7px 14px; border-radius: 9px; white-space: nowrap; color: var(--muted); }
+.seg button.on { background: var(--raised); color: var(--fg); font-weight: 600; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 16px 0 12px; overflow-x: auto; scrollbar-width: none; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted);
+  padding: 10px 12px; white-space: nowrap; }
+.tabs button.on { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+
+.metrics { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin: 8px 0; }
+.metric { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px 18px; box-shadow: var(--shadow); }
+.metric .k { font-size: 13px; color: var(--muted); }
+.metric .v { font-family: "DM Mono", monospace; font-size: 26px; font-weight: 500; letter-spacing: -.02em; }
+.metric .d { font-size: 13px; color: var(--muted); }
+.good { color: var(--r-gold) !important; } .bad { color: var(--r-stag) !important; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px; }
+.charts { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.chart { position: relative; height: 280px; }
+.note { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px;
+  padding: 10px 14px; margin: 10px 0; }
+.note.warn { border-left-color: var(--r-refl); }
+
+.day { margin: 16px 0 6px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.day b { font-size: 15px; }
+.rows { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; }
+.row .main { flex: 1; min-width: 0; }
+.row .main div:last-child { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .amt { font-family: "DM Mono", monospace; white-space: nowrap; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
+
+.table { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 9px 12px; text-align: right; border-top: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; font-size: 13px; border-top: 0; }
+th:first-child, td:first-child { text-align: left; }
+td input { width: 110px; padding: 6px 8px; text-align: right; font-family: "DM Mono", monospace; }
+details summary { cursor: pointer; color: var(--muted); margin: 12px 0; }
+
+.fab { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom));
+  width: 60px; height: 60px; border-radius: 20px; font-size: 30px; line-height: 1; padding: 0; box-shadow: var(--shadow); z-index: 5; }
+dialog { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 28px; padding: 20px;
+  width: min(440px, calc(100vw - 32px)); box-shadow: var(--shadow); }
+dialog::backdrop { background: rgba(0,0,0,.5); }
+dialog h2 { margin: 0 0 12px; font-size: 20px; font-weight: 800; letter-spacing: -.03em; }
+dialog form { display: grid; gap: 12px; }
+.err { color: var(--r-stag); font-size: 14px; min-height: 1em; }
+#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--raised); border: 1px solid var(--line);
+  border-radius: 12px; padding: 10px 16px; box-shadow: var(--shadow); z-index: 10; transition: opacity .3s; }
+#login { max-width: 360px; margin: 18vh auto 0; display: grid; gap: 12px; }
+/* Telefono: metriche su una riga (nome a sinistra, valore a destra) invece di card alte impilate */
+@media (max-width: 640px) {
+  .metrics { gap: 8px; }
+  .metric { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; column-gap: 12px;
+    padding: 10px 14px; border-radius: 14px; }
+  .metric .v { font-size: 20px; }
+  .metric .d { flex-basis: 100%; }
+  .chart { height: 240px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img id="logo" src="logo-mark.svg" alt="">
+    <span class="brand">Soft Investing</span>
+    <button id="logout" class="ghost small hidden">Esci</button>
+  </header>
+
+  <form id="login" class="hidden">
+    <h1>Le tue finanze</h1>
+    <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="primary">Entra</button>
+    <div class="err"></div>
+  </form>
+
+  <div id="app" class="hidden">
+    <h1>Le tue finanze</h1>
+    <div class="seg" id="section"></div>
+    <div id="money"></div>
+    <div id="invest" class="hidden"></div>
+  </div>
+  <div id="loading" class="muted" style="margin-top:24px">Caricamento…</div>
+</main>
+
+<button class="primary fab hidden" id="fab" aria-label="Aggiungi movimento">+</button>
+
+<dialog id="dlg-mov">
+  <h2>Nuovo movimento</h2>
+  <form method="dialog">
+    <div class="seg" data-name="kind"></div>
+    <label>Data<input type="date" name="date" required></label>
+    <label>Importo (€)<input type="number" name="amount" inputmode="decimal" step="0.01" min="0.01" required></label>
+    <label>Categoria<select name="category"></select></label>
+    <label><span data-label="method">Metodo di pagamento</span><select name="method"></select></label>
+    <label>Nota<input name="note" maxlength="200" placeholder="facoltativa"></label>
+    <div class="err"></div>
+    <div class="actions"><button class="primary" value="save">Salva</button><button value="cancel" formnovalidate>Annulla</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-op">
+  <h2>Nuova operazione</h2>
+  <form method="dialog">
+    <div class="seg" data-name="side"></div>
+    <label>Strumento<select name="pick"></select></label>
+    <label data-new>Nome o ticker<input name="name" maxlength="60" placeholder="es. VWCE"></label>
+    <label data-new>Tipo di strumento<select name="kind"></select>
+      <span class="small">Serve per le tasse: i guadagni degli ETF non recuperano le minusvalenze.</span></label>
+    <label>Data<input type="date" name="date" required></label>
+    <label>Quote<input type="number" name="quantity" inputmode="decimal" step="any" min="0" required></label>
+    <label>Prezzo per quota (€)<input type="number" name="price" inputmode="decimal" step="any" min="0" required></label>
+    <label>Commissioni (€)<input type="number" name="fees" inputmode="decimal" step="0.01" min="0" value="0"></label>
+    <div class="err"></div>
+    <div class="actions"><button class="primary" value="save">Salva</button><button value="cancel" formnovalidate>Annulla</button></div>
+  </form>
+</dialog>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+"use strict";
+// --- utilità -------------------------------------------------------------------------------------
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+// useGrouping "always": in italiano Intl non mette il punto delle migliaia sotto i 10.000 (1620 invece di 1.620)
+const eurFmt = new Intl.NumberFormat("it-IT", {style: "currency", currency: "EUR", useGrouping: "always"});
+const euro = x => eurFmt.format(x || 0);
+const whole = x => new Intl.NumberFormat("it-IT", {style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always"}).format(Math.round(x || 0));
+const num = (x, d = 2) => (x ?? 0).toLocaleString("it-IT", {minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: "always"});
+const pct = x => String(x).replace(".", ",");
+const parseDay = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const fmtDay = s => s.split("-").reverse().join("/");
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const palette = () => [1, 2, 3, 4, 5, 6, 7].map(i => css(`--c${i}`));
+const isoToday = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+
+async function call(path, method = "GET", body) {
+  const res = await fetch(path, {method, headers: body ? {"Content-Type": "application/json"} : {},
+                                 body: body ? JSON.stringify(body) : undefined, credentials: "same-origin"});
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== "/api/login") { showLogin(); throw new Error("login"); }
+  if (!res.ok) throw new Error(data.error || "Errore del server, riprova.");
+  return data;
+}
+
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.classList.remove("hidden"); t.style.opacity = 1;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.classList.add("hidden"), 300); }, 2500);
+}
+
+function seg(el, options, value, onChange, fmt = x => x) {
+  el.innerHTML = options.map(o => `<button type="button" data-v="${esc(o)}" class="${o === value ? "on" : ""}">${esc(fmt(o))}</button>`).join("");
+  el.onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    el.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    onChange(options.find(o => String(o) === b.dataset.v));
+  };
+}
+
+function tabs(el, names, onChange, start = 0) {
+  const bar = document.createElement("div"); bar.className = "tabs";
+  bar.innerHTML = names.map((n, i) => `<button type="button" class="${i === start ? "on" : ""}">${esc(n)}</button>`).join("");
+  el.replaceChildren(bar, document.createElement("div"));
+  // corpo nuovo a ogni cambio: i listener del tab precedente spariscono con il suo nodo
+  const show = i => { const body = document.createElement("div"); el.lastChild.replaceWith(body); onChange(i, body); };
+  bar.onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    bar.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    show([...bar.children].indexOf(b));
+  };
+  show(start);
+}
+
+const metric = (k, v, d = "", cls = "") => `<div class="metric"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>` +
+  (d ? `<div class="d ${cls}">${esc(d)}</div>` : "") + `</div>`;
+const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+// --- grafici -------------------------------------------------------------------------------------
+const charts = new Map();
+function chart(canvas, config) {
+  charts.get(canvas)?.destroy();
+  const muted = css("--muted"), line = css("--line");
+  Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+  Chart.defaults.color = muted;
+  const axis = {grid: {color: line}, border: {color: line}, ticks: {font: {family: "'DM Mono', monospace"}}};
+  config.options = Object.assign({responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: {mode: "index", intersect: false},
+    plugins: {legend: {labels: {boxWidth: 12, boxHeight: 12, useBorderRadius: true, borderRadius: 3}}}}, config.options || {});
+  if (config.type !== "doughnut") {
+    config.options.scales = config.options.scales || {};
+    for (const k of ["x", "y"]) config.options.scales[k] = Object.assign({}, axis, config.options.scales[k] || {});
+  }
+  charts.set(canvas, new Chart(canvas, config));
+}
+const euroTick = {callback: v => whole(v)};
+const tooltipEuro = {callbacks: {label: c => `${c.dataset.label || c.label}: ${euro(c.parsed.y ?? c.parsed.x ?? c.parsed)}`}};
+const canvas = (id, h) => `<div class="chart" ${h ? `style="height:${h}px"` : ""}><canvas id="${id}"></canvas></div>`;
+
+// --- stato ---------------------------------------------------------------------------------------
+let D = null;   // /api/dashboard
+let INV = null; // /api/investments
+let section = "Spese ed entrate";
+const tabState = {money: 0, invest: 0};
+
+async function load() {
+  D = await call("/api/dashboard");
+  if (section === "Investimenti") INV = await call("/api/investments");
+  render();
+}
+
+function render() {
+  $("#loading").classList.add("hidden");
+  $("#app").classList.remove("hidden");
+  seg($("#section"), ["Spese ed entrate", "Investimenti"], section, async s => {
+    section = s;
+    if (s === "Investimenti" && !INV) INV = await call("/api/investments");
+    render();
+  });
+  $("#money").classList.toggle("hidden", section !== "Spese ed entrate");
+  $("#invest").classList.toggle("hidden", section === "Spese ed entrate");
+  $("#fab").classList.toggle("hidden", section !== "Spese ed entrate");
+  section === "Investimenti" ? renderInvest() : renderMoney();
+}
+
+// --- spese ed entrate ----------------------------------------------------------------------------
+const NAMES = {D: "oggi", W: "questa settimana", M: "questo mese"};
+const WEEKDAYS = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
+
+function renderMoney() {
+  const el = $("#money");
+  if (!D.periods) {
+    el.innerHTML = `<p class="muted">Spese, entrate e risparmio del mese, della settimana e di oggi.</p>
+      <div class="note">Nessun movimento ancora. Aggiungi la prima spesa o entrata con il tasto +.</div>`;
+    return;
+  }
+  tabs(el, ["Mese", "Settimana", "Giorno", "Entrate e risparmio", "Tutti i movimenti"], (i, body) => {
+    tabState.money = i;
+    [() => periodTab(body, "M"), () => periodTab(body, "W"), () => periodTab(body, "D"),
+     () => balanceTab(body), () => allTab(body)][i]();
+  }, tabState.money);
+}
+
+function deltaText(now, before) {
+  if (!before) return ["", ""];
+  const p = (now - before) / before * 100;
+  return [`${p >= 0 ? "+" : ""}${p.toFixed(0)}% vs periodo prima`, p > 0 ? "bad" : "good"];
+}
+
+function periodTab(body, f) {
+  const p = D.periods[f];
+  const saldo = p.income - p.spent;
+  const [dt, dc] = deltaText(p.spent, p.before);
+  const view = D.movements.filter(m => m.date >= p.start);
+  const unit = {D: "giorni", W: "settimane", M: "mesi"}[f];
+  body.innerHTML = `
+    <div class="metrics">${metric(`Speso ${NAMES[f]}`, euro(p.spent), dt, dc)}${metric("Entrate", euro(p.income))}
+      ${metric("Saldo", euro(saldo), p.income ? `${(saldo / p.income * 100).toFixed(0)}% delle entrate` : "")}</div>
+    <h3>Movimenti di ${NAMES[f]}</h3><div data-list></div>
+    <h3>Andamento delle spese <small>· ultimi ${p.history.length} ${unit}</small></h3>
+    <div class="card">${canvas(`hist-${f}`)}<div class="small muted">Linea tratteggiata: media del periodo.</div></div>
+    <div class="charts">
+      <div><h3>Per categoria <small>· ${NAMES[f]}</small></h3><div class="card" data-cat></div></div>
+      <div><h3>Per metodo di pagamento <small>· ${NAMES[f]}</small></h3><div class="card" data-met></div></div>
+    </div>
+    ${f === "M" ? `<h3>Questo mese contro il mese scorso <small>· spesa cumulata giorno per giorno</small></h3>
+      <div class="card">${canvas("cum")}</div>` : ""}`;
+  movementList($("[data-list]", body), view, "Nessun movimento nel periodo.");
+
+  const accent = css("--accent"), muted = css("--muted");
+  const avg = p.history.reduce((s, h) => s + h.amount, 0) / p.history.length;
+  const labels = p.history.map(h => { const [y, m, d] = h.period.split("-"); return f === "M" ? `${m}/${y.slice(2)}` : `${d}/${m}`; });
+  chart($(`#hist-${f}`), {type: "bar", data: {labels, datasets: [
+      {type: "line", label: "Media", data: labels.map(() => avg), borderColor: muted, borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0},
+      {label: "Speso", data: p.history.map(h => h.amount), backgroundColor: accent, borderRadius: 6}]},
+    options: {plugins: {legend: {display: false}, tooltip: tooltipEuro}, scales: {y: {ticks: euroTick}, x: {grid: {display: false}}}}});
+
+  // la palette ha 7 colori: oltre le prime 6 categorie si somma in "Altre"
+  let cat = p.category;
+  if (cat.length > 7) cat = [...cat.slice(0, 6), {category: "Altre", amount: cat.slice(6).reduce((s, c) => s + c.amount, 0)}];
+  for (const [sel, rows, key, type] of [["[data-cat]", cat, "category", "doughnut"], ["[data-met]", p.method, "method", "bar"]]) {
+    const box = $(sel, body);
+    if (!rows.length) { box.innerHTML = `<div class="small muted">Nessuna spesa nel periodo.</div>`; continue; }
+    box.innerHTML = canvas(`${key}-${f}`);
+    const data = {labels: rows.map(r => r[key]), datasets: [{label: "€", data: rows.map(r => r.amount), backgroundColor: palette(),
+      borderColor: css("--surface"), borderWidth: type === "doughnut" ? 2 : 0, borderRadius: type === "doughnut" ? 4 : 6}]};
+    chart($(`#${key}-${f}`), type === "doughnut"
+      ? {type, data, options: {cutout: "62%", plugins: {legend: {position: "bottom"}, tooltip: {callbacks: {label: c => `${c.label}: ${euro(c.parsed)}`}}}}}
+      : {type, data, options: {indexAxis: "y", plugins: {legend: {display: false}, tooltip: {callbacks: {label: c => euro(c.parsed.x)}}},
+                               scales: {x: {ticks: euroTick}, y: {grid: {display: false}, ticks: {font: {family: "'Plus Jakarta Sans'", size: 13}}}}}});
+  }
+
+  if (f === "M") {
+    const series = name => p.cumulative.filter(c => c.serie === name);
+    const days = Array.from({length: 31}, (_, i) => i + 1);
+    const ds = (name, color) => ({label: name, data: days.map(d => series(name).find(c => c.day === d)?.amount ?? null),
+      borderColor: color, backgroundColor: color, stepped: "after", borderWidth: 2.5, pointRadius: 0, spanGaps: false});
+    chart($("#cum"), {type: "line", data: {labels: days, datasets: [ds("Questo mese", accent), ds("Mese scorso", muted)]},
+      options: {plugins: {tooltip: tooltipEuro}, scales: {y: {ticks: euroTick}, x: {title: {display: true, text: "Giorno del mese"}}}}});
+  }
+}
+
+function movementList(el, view, empty) {
+  if (!view.length) { el.innerHTML = `<div class="small muted">${esc(empty)}</div>`; return; }
+  const today = parseDay(D.today);
+  const days = [...new Set(view.map(m => m.date))];
+  el.innerHTML = days.map(day => {
+    const part = view.filter(m => m.date === day);
+    const ago = Math.round((today - parseDay(day)) / 86400000);
+    const name = ago === 0 ? "Oggi" : ago === 1 ? "Ieri" : WEEKDAYS[parseDay(day).getDay()];
+    const spent = part.filter(m => m.kind === "spesa").reduce((s, m) => s + m.amount, 0);
+    const income = part.filter(m => m.kind === "entrata").reduce((s, m) => s + m.amount, 0);
+    const totals = [spent && `speso ${euro(spent)}`, income && `entrate ${euro(income)}`].filter(Boolean).join(" · ");
+    return `<div class="day"><b>${name} ${fmtDay(day)}</b><span class="small muted">${totals}</span></div>
+      <div class="rows">${part.map(m => `<label class="row">
+        <input type="checkbox" value="${m.id}">
+        <div class="main"><div>${esc(m.category)}</div><div>${esc(m.method)}${m.note ? " · " + esc(m.note) : ""}</div></div>
+        <span class="amt ${m.kind === "entrata" ? "good" : ""}">${m.kind === "entrata" ? "+" : "−"}${euro(m.amount)}</span></label>`).join("")}</div>`;
+  }).join("") + `<div class="actions"><button type="button" data-del disabled>Elimina 0 selezionati</button></div>`;
+  deleteButton(el, "/api/movements", "movimenti eliminati");
+}
+
+function deleteButton(el, path, noun) {
+  const btn = $("[data-del]", el);
+  const checked = () => [...el.querySelectorAll("input[type=checkbox]:checked")].map(c => Number(c.value));
+  el.addEventListener("change", () => { const n = checked().length; btn.disabled = !n; btn.textContent = `Elimina ${n} selezionat${noun.startsWith("operazioni") ? "e" : "i"}`; });
+  btn.onclick = async () => {
+    const ids = checked();
+    if (!confirm(`Eliminare ${ids.length} ${noun.split(" ")[0]}? Non si può annullare.`)) return;
+    btn.disabled = true;
+    try { await call(path, "DELETE", {ids}); toast(`${ids.length} ${noun}`); INV = null; await load(); }
+    catch (e) { if (e.message !== "login") toast(e.message); btn.disabled = false; }
+  };
+}
+
+function balanceTab(body) {
+  const b = D.balance;
+  const labels = b.map(r => { const [y, m] = r.month.split("-"); return `${m}/${y.slice(2)}`; });
+  body.innerHTML = `<h3>Entrate e spese per mese <small>· ultimi 12 mesi</small></h3><div class="card">${canvas("bal")}</div>
+    <h3>Tasso di risparmio <small>· quota delle entrate che resta a fine mese</small></h3><div class="card">${canvas("rate", 260)}</div>`;
+  chart($("#bal"), {type: "bar", data: {labels, datasets: [
+      {label: "Entrate", data: b.map(r => r.income), backgroundColor: css("--r-gold"), borderRadius: 5},
+      {label: "Spese", data: b.map(r => r.expense), backgroundColor: css("--r-stag"), borderRadius: 5}]},
+    options: {plugins: {tooltip: tooltipEuro}, scales: {y: {ticks: euroTick}, x: {grid: {display: false}}}}});
+  chart($("#rate"), {type: "line", data: {labels, datasets: [
+      {label: "Risparmio %", data: b.map(r => r.rate), borderColor: css("--accent"), backgroundColor: css("--accent"), borderWidth: 2.5, spanGaps: true},
+      {label: "zero", data: labels.map(() => 0), borderColor: css("--muted"), borderWidth: 1, pointRadius: 0}]},
+    options: {plugins: {legend: {display: false}, tooltip: {filter: c => c.datasetIndex === 0, callbacks: {
+      label: c => `Risparmio ${pct(c.parsed.y)}% · ${euro(b[c.dataIndex].saving)}`}}}, scales: {y: {ticks: {callback: v => v + "%"}}}}});
+}
+
+function allTab(body) {
+  const uniq = k => [...new Set(D.movements.map(m => m[k]))].sort();
+  const opt = (name, all, values) => `<label>${name}<select data-f="${name}"><option value="">${all}</option>` +
+    values.map(v => `<option>${esc(v)}</option>`).join("") + `</select></label>`;
+  body.innerHTML = `<div class="grid">${opt("Tipo", "Tutti", ["spesa", "entrata"])}${opt("Categoria", "Tutte", uniq("category"))}
+    ${opt("Metodo", "Tutti", uniq("method"))}</div><div data-list></div>`;
+  const update = () => {
+    const [k, c, m] = ["Tipo", "Categoria", "Metodo"].map(n => $(`[data-f="${n}"]`, body).value);
+    const view = D.movements.filter(x => (!k || x.kind === k) && (!c || x.category === c) && (!m || x.method === m));
+    const list = $("[data-list]", body).cloneNode(false); // nuovo nodo: niente listener doppi sulla lista
+    $("[data-list]", body).replaceWith(list);
+    movementList(list, view, "Nessun movimento con questi filtri.");
+  };
+  body.querySelectorAll("select").forEach(s => s.onchange = update);
+  update();
+}
+
+// --- dialog nuovo movimento ----------------------------------------------------------------------
+function openMovement() {
+  const dlg = $("#dlg-mov"), f = $("form", dlg), o = D.options;
+  let kind = "spesa";
+  const fill = () => {
+    f.category.innerHTML = (kind === "spesa" ? o.expense : o.income).map(c => `<option>${esc(c)}</option>`).join("");
+    $("[data-label=method]", f).textContent = kind === "spesa" ? "Metodo di pagamento" : "Ricevuto con";
+  };
+  seg($("[data-name=kind]", f), o.kinds, kind, k => { kind = k; fill(); }, capital);
+  f.reset(); f.date.value = f.date.max = isoToday();
+  f.method.innerHTML = o.methods.map(m => `<option>${esc(m)}</option>`).join("");
+  fill(); $(".err", f).textContent = "";
+  f.onsubmit = async e => {
+    if (e.submitter?.value !== "save") return;
+    e.preventDefault();
+    const amount = Number(f.amount.value);
+    try {
+      await call("/api/movements", "POST", {kind, date: f.date.value, amount, category: f.category.value, method: f.method.value, note: f.note.value});
+      dlg.close(); toast(`${capital(kind)} di ${euro(amount)} salvata`); await load();
+    } catch (err) { if (err.message !== "login") $(".err", f).textContent = err.message; }
+  };
+  dlg.showModal();
+  if (matchMedia("(hover: hover)").matches) f.amount.focus();
+}
+$("#fab").onclick = openMovement;
+
+// --- investimenti --------------------------------------------------------------------------------
+function renderInvest() {
+  tabs($("#invest"), ["Portafoglio", "Ribilanciatore", "Zainetto fiscale", "Libertà finanziaria", "Interesse composto"], (i, body) => {
+    tabState.invest = i;
+    [portfolioTab, rebalanceTab, bagTab, fireTab, interestTab][i](body);
+  }, tabState.invest);
+}
+
+function portfolioTab(body) {
+  const pos = INV.positions;
+  const value = pos.reduce((s, p) => s + p.value, 0), cost = pos.reduce((s, p) => s + p.cost, 0);
+  const g = value - cost;
+  body.innerHTML = `<div class="metrics">${metric("Valore attuale", euro(value))}${metric("Investito", euro(cost), "Quote che hai ancora, commissioni comprese")}
+      ${metric("Guadagno non realizzato", euro(g), cost ? `${g >= 0 ? "+" : ""}${pct((g / cost * 100).toFixed(1))}%` : "", g >= 0 ? "good" : "bad")}</div>
+    <div class="actions"><button class="primary" data-add>＋ Aggiungi operazione</button></div>
+    ${pos.length ? `<h3>Posizioni <small>· aggiorna a mano il prezzo attuale (lo trovi sul sito del tuo broker)</small></h3>
+    <div class="table"><table><tr><th>Strumento</th><th>Tipo</th><th>Quote</th><th>Prezzo medio €</th><th>Prezzo attuale €</th><th>Valore €</th><th>Guadagno €</th><th>%</th></tr>
+      ${pos.map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.kind)}</td><td class="num">${p.quantity.toLocaleString("it-IT")}</td>
+        <td class="num">${num(p.avg_price)}</td><td><input type="number" step="any" min="0" data-name="${esc(p.name)}" value="${p.price}" data-old="${p.price}"></td>
+        <td class="num">${num(p.value)}</td><td class="num ${p.gain >= 0 ? "good" : "bad"}">${p.gain >= 0 ? "+" : ""}${num(p.gain)}</td>
+        <td class="num ${p.gain >= 0 ? "good" : "bad"}">${p.gain_pct >= 0 ? "+" : ""}${num(p.gain_pct, 1)}</td></tr>`).join("")}</table></div>
+    <div class="actions"><button data-save disabled>Salva prezzi</button></div>` : ""}
+    <h3>Operazioni</h3><div data-ops></div>`;
+  $("[data-add]", body).onclick = openOperation;
+  if (pos.length) saveInputs(body, "price", "Salva prezzi");
+
+  const ops = $("[data-ops]", body);
+  if (!INV.operations.length) { ops.innerHTML = `<div class="small muted">Nessuna operazione. Aggiungi il tuo primo acquisto.</div>`; return; }
+  ops.innerHTML = `<div class="rows">${INV.operations.map(o => `<label class="row"><input type="checkbox" value="${o.id}">
+      <div class="main"><div>${esc(o.name)} · ${esc(o.side)}</div><div>${fmtDay(o.date)} · ${o.quantity.toLocaleString("it-IT")} quote a ${euro(o.price)}${o.fees ? ` · commissioni ${euro(o.fees)}` : ""}</div></div>
+      <span class="amt">${euro(o.quantity * o.price)}</span></label>`).join("")}</div>
+    <div class="actions"><button type="button" data-del disabled>Elimina 0 selezionate</button></div>`;
+  deleteButton(ops, "/api/operations", "operazioni eliminate");
+}
+
+// Input numerici in tabella con bottone Salva: invia solo le righe cambiate
+function saveInputs(body, column, label) {
+  const btn = $("[data-save]", body);
+  const changed = () => [...body.querySelectorAll("td input[data-name]")].filter(i => i.value !== "" && Number(i.value) !== Number(i.dataset.old));
+  body.addEventListener("input", () => { btn.disabled = !changed().length; });
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await call("/api/instruments", "PATCH", {rows: changed().map(i => ({name: i.dataset.name, [column]: Number(i.value)}))});
+      toast("Salvato"); INV = await call("/api/investments"); render();
+    } catch (e) { if (e.message !== "login") toast(e.message); btn.disabled = false; }
+  };
+}
+
+function openOperation() {
+  const dlg = $("#dlg-op"), f = $("form", dlg), o = D.options;
+  const NEW = "＋ Nuovo strumento";
+  const names = INV.instruments.map(i => i.name), held = INV.positions.map(p => p.name);
+  let side = "acquisto";
+  const fill = () => {
+    const choices = side === "acquisto" ? [...names, NEW] : held;
+    f.pick.innerHTML = choices.map(c => `<option>${esc(c)}</option>`).join("");
+    toggleNew();
+  };
+  const toggleNew = () => dlg.querySelectorAll("[data-new]").forEach(l => l.classList.toggle("hidden", f.pick.value !== NEW));
+  f.reset();
+  seg($("[data-name=side]", f), o.sides, side, s => { side = s; fill(); }, capital);
+  f.kind.innerHTML = o.asset_kinds.map(k => `<option>${esc(k)}</option>`).join("");
+  f.date.value = f.date.max = isoToday(); f.fees.value = 0;
+  f.pick.onchange = toggleNew; fill(); $(".err", f).textContent = "";
+  f.onsubmit = async e => {
+    if (e.submitter?.value !== "save") return;
+    e.preventDefault();
+    if (side === "vendita" && !held.length) { $(".err", f).textContent = "Non hai strumenti da vendere."; return; }
+    const isNew = f.pick.value === NEW, name = isNew ? f.name.value.trim() : f.pick.value;
+    try {
+      await call("/api/operations", "POST", {side, name, new: isNew, kind: isNew ? f.kind.value : undefined, date: f.date.value,
+        quantity: Number(f.quantity.value), price: Number(f.price.value), fees: Number(f.fees.value || 0)});
+      dlg.close(); toast(`${capital(side)} di ${name} salvato`); INV = await call("/api/investments"); render();
+    } catch (err) { if (err.message !== "login") $(".err", f).textContent = err.message; }
+  };
+  dlg.showModal();
+}
+
+function rebalanceTab(body) {
+  body.innerHTML = `<h3>Dove mettere il versamento di questo mese</h3>
+    <p class="small muted">Scegli quanto pesa ogni strumento nel portafoglio ideale. Il ribilanciatore divide il versamento solo tra gli
+    strumenti sotto il loro peso: così ti riavvicini all'obiettivo senza vendere, quindi senza pagare tasse né commissioni di vendita.</p>`;
+  if (!INV.instruments.length) { body.innerHTML += `<div class="note">Aggiungi prima un'operazione nel Portafoglio.</div>`; return; }
+  const value = Object.fromEntries(INV.positions.map(p => [p.name, p.value]));
+  const rows = INV.instruments.map(i => ({name: i.name, price: i.price, target: i.target, value: value[i.name] || 0}));
+  body.innerHTML += `<div class="table"><table><tr><th>Strumento</th><th>Peso obiettivo %</th></tr>
+      ${rows.map(r => `<tr><td>${esc(r.name)}</td><td><input type="number" min="0" max="100" step="1" data-name="${esc(r.name)}" value="${r.target}" data-old="${r.target}"></td></tr>`).join("")}</table></div>
+    <div class="actions"><button data-save disabled>Salva pesi</button></div>
+    <label style="max-width:260px">Quanto versi questo mese (€)<input type="number" min="0" step="50" data-cash value="${Math.max(Math.round(INV.saving), 0) || 500}"></label>
+    <div data-out></div>`;
+  saveInputs(body, "target", "Salva pesi");
+  const update = async () => {
+    const targets = rows.map(r => Number($(`input[data-name="${CSS.escape(r.name)}"]`, body).value) || 0);
+    const total = targets.reduce((s, t) => s + t, 0), out = $("[data-out]", body);
+    if (total <= 0) { out.innerHTML = `<div class="note">Dai un peso obiettivo ad almeno uno strumento.</div>`; return; }
+    const cash = Number($("[data-cash]", body).value) || 0;
+    try {
+      const {buy} = await call("/api/rebalance", "POST", {cash, rows: rows.map((r, i) => ({value: r.value, target: targets[i]}))});
+      const now = rows.reduce((s, r) => s + r.value, 0), after = rows.map((r, i) => r.value + buy[i]);
+      const afterSum = after.reduce((s, x) => s + x, 0);
+      out.innerHTML = (Math.abs(total - 100) > 0.01 ? `<div class="note warn">I pesi sommano a ${pct(total)}%: li riporto a 100 in proporzione.</div>` : "") +
+        `<div class="table" style="margin-top:12px"><table><tr><th>Strumento</th><th>Obiettivo %</th><th>Oggi %</th><th>Compra €</th><th>Quote circa</th><th>Dopo %</th></tr>
+        ${rows.map((r, i) => `<tr><td>${esc(r.name)}</td><td class="num">${num(targets[i] / total * 100, 1)}</td>
+          <td class="num">${num(now ? r.value / now * 100 : 0, 1)}</td><td class="num">${num(buy[i])}</td>
+          <td class="num">${num(buy[i] / r.price)}</td><td class="num">${num(afterSum ? after[i] / afterSum * 100 : 0, 1)}</td></tr>`).join("")}</table></div>
+        <p class="small muted">Quote circa = importo / prezzo attuale: arrotonda in base a quello che il broker permette.</p>`;
+    } catch (e) { if (e.message !== "login") out.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; }
+  };
+  body.addEventListener("input", debounce(update, 300));
+  update();
+}
+
+function bagTab(body) {
+  const y = INV.year, bag = INV.bag, sales = INV.sales;
+  body.innerHTML = `<h3>Zainetto fiscale <small>· le perdite che puoi ancora recuperare</small></h3>
+    <p class="small muted">Quando vendi in perdita nasce una minusvalenza: per 4 anni (fino al 31/12 del quarto anno dopo) riduce le tasse sui
+    guadagni futuri. Attenzione: i guadagni degli ETF non la usano, quelli di azioni, ETC e obbligazioni sì. I titoli di Stato contano al 48%
+    perché tassati al 12,5%.</p>
+    <div class="metrics">${metric("Minusvalenze da usare", euro(bag.reduce((s, b) => s + b.residual, 0)))}${metric(`Scadono a fine ${y}`, euro(INV.expiring))}
+      ${metric(`Tasse stimate ${y}`, euro(INV.tax_year), "Sui guadagni realizzati quest'anno, dopo lo zainetto")}</div>
+    ${INV.expiring > 0 ? (INV.usable.length
+      ? `<div class="note warn">Hai ${euro(INV.expiring)} di minusvalenze che scadono a fine anno. Vendendo in guadagno ${esc(INV.usable.join(", "))}
+         (e ricomprando, se vuoi tenerli) le recuperi invece di perderle.</div>`
+      : `<div class="note">Hai ${euro(INV.expiring)} di minusvalenze che scadono a fine anno, ma nessuna posizione non-ETF in guadagno con cui usarle.</div>`) : ""}
+    ${bag.length ? `<div class="table"><table><tr><th>Nata nel</th><th>Scade il 31/12 del</th><th>Importo €</th><th>Ancora da usare €</th></tr>
+      ${bag.map(b => `<tr><td class="num">${b.year}</td><td class="num">${b.expires}</td><td class="num">${num(b.amount)}</td><td class="num">${num(b.residual)}</td></tr>`).join("")}</table></div>` : ""}
+    ${sales.length ? `<h3>Vendite <small>· guadagno realizzato e tasse stimate</small></h3>
+      <div class="table"><table><tr><th>Data</th><th>Strumento</th><th>Tipo</th><th>Guadagno €</th><th>Tasse €</th></tr>
+      ${sales.map(s => `<tr><td class="num">${fmtDay(s.date)}</td><td>${esc(s.name)}</td><td>${esc(s.kind)}</td>
+        <td class="num ${s.gain >= 0 ? "good" : "bad"}">${s.gain >= 0 ? "+" : ""}${num(s.gain)}</td><td class="num">${num(s.tax)}</td></tr>`).join("")}</table></div>` : ""}
+    <p class="small muted">Stima: costo medio come la banca, commissioni incluse; non considera dividendi e cedole né la parte di titoli di Stato
+    dentro gli ETF. Le tasse le calcola la banca in regime amministrato: qui servono per controllare e decidere. Non è consulenza fiscale.</p>`;
+}
+
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+const yearsText = y => y === null ? "oltre 50 anni" : y === 0 ? "già ora" : `${y.toFixed(0)} ${y === 1 ? "anno" : "anni"}`;
+
+function fireTab(body) {
+  const capital0 = INV.positions.reduce((s, p) => s + p.value, 0);
+  let profile = "Bilanciato";
+  body.innerHTML = `<h3>Quando potrai vivere dei tuoi investimenti?</h3>
+    <p class="small muted">Libertà finanziaria (FIRE) = avere abbastanza soldi investiti da pagare le tue spese con i loro rendimenti, senza dover
+    lavorare. Il capitale parte dal valore del tuo portafoglio, risparmio e spese dalla media dei tuoi ultimi 12 mesi chiusi: puoi cambiarli.</p>
+    <div class="grid">
+      <label>Quanto hai già investito (€)<input type="number" min="0" step="1000" name="capital" value="${Math.round(capital0)}"></label>
+      <label>Quanto investi al mese (€)<input type="number" min="0" step="50" name="saving" value="${Math.max(Math.round(INV.saving), 0)}"></label>
+      <label>Di quanto vivresti all'anno (€, di oggi)<input type="number" min="0" step="500" name="expense" value="${Math.round(INV.expense)}"></label>
+    </div>
+    <label style="margin-top:12px">Come investi <span class="small">· Prudente: soprattutto obbligazioni. Bilanciato: metà azioni. Aggressivo: quasi solo azioni.</span>
+      <div class="seg" data-profile></div></label>
+    <div data-out></div>
+    <p class="small muted">2000 simulazioni di futuri possibili, con anni buoni e cattivi a caso. Rendimento dopo inflazione, costi e tasse:
+    Prudente 2%, Bilanciato 3,5%, Aggressivo 5% l'anno in media. Sono ipotesi, non previsioni, e non è consulenza finanziaria.</p>`;
+  const val = n => Number($(`[name=${n}]`, body).value) || 0;
+  const update = async () => {
+    const out = $("[data-out]", body);
+    if (val("expense") <= 0) { out.innerHTML = `<div class="note">Inserisci di quanto vivresti all'anno.</div>`; return; }
+    try {
+      const r = await call("/api/fire", "POST", {capital: val("capital"), saving: val("saving"), expense: val("expense"), profile});
+      const diff = r.faster !== null && r.p50 !== null ? `${r.faster - r.p50 >= 0 ? "+" : ""}${(r.faster - r.p50).toFixed(0)} anni` : "";
+      out.innerHTML = `<div class="metrics">${metric("Ti servono", `${Math.round(r.target / 1000).toLocaleString("it-IT")} mila €`, `Spese annue / ${pct((r.withdrawal * 100).toFixed(1))}%`)}
+          ${metric("Ci arrivi in (caso medio)", yearsText(r.p50), "Metà delle simulazioni ci arriva prima, metà dopo")}
+          ${metric("Con 100 € in più al mese", yearsText(r.faster), diff, "good")}</div>
+        <p>Nel caso <b>fortunato</b> ci arrivi in <b>${yearsText(r.p10)}</b>, in quello <b>sfortunato</b> in <b>${yearsText(r.p90)}</b>.
+        Con ${whole(r.target)} investiti puoi prelevare ogni anno il ${pct((r.withdrawal * 100).toFixed(1))}% (${whole(val("expense"))}) e storicamente
+        il capitale dura anche per 40-50 anni.</p>
+        <h3>Come cresce il patrimonio <small>· linea = caso medio, fascia = dal caso sfortunato al fortunato, tratteggio = obiettivo</small></h3>
+        <div class="card">${canvas("fire")}</div>`;
+      const accent = css("--accent"), band = accent + "40";
+      chart($("#fire"), {type: "line", data: {labels: r.band.map(b => b.year), datasets: [
+          {label: "Sfortunato", data: r.band.map(b => b.low), borderColor: "transparent", pointRadius: 0},
+          {label: "Fortunato", data: r.band.map(b => b.high), borderColor: "transparent", backgroundColor: band, fill: "-1", pointRadius: 0},
+          {label: "Medio", data: r.band.map(b => b.mid), borderColor: accent, borderWidth: 2.5, pointRadius: 0},
+          {label: "Obiettivo", data: r.band.map(() => r.target), borderColor: css("--r-gold"), borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0}]},
+        options: {plugins: {legend: {display: false}, tooltip: tooltipEuro},
+                  scales: {y: {ticks: euroTick}, x: {title: {display: true, text: "Anni da oggi"}}}}});
+    } catch (e) { if (e.message !== "login") out.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; }
+  };
+  seg($("[data-profile]", body), D.options.profiles, profile, p => { profile = p; update(); });
+  body.addEventListener("input", debounce(update, 400));
+  update();
+}
+
+function interestTab(body) {
+  let freq = "Annuale", tax = 26;
+  body.innerHTML = `<h3>Quanto diventano i tuoi risparmi nel tempo</h3>
+    <p class="small muted">Con versamenti mensili, tasse e inflazione. L'interesse composto fa maturare interessi anche sugli interessi: la
+    differenza con quello semplice cresce molto con gli anni.</p>
+    <div class="grid">
+      <label>Capitale iniziale (€)<input type="number" min="0" step="1000" name="principal" value="10000"></label>
+      <label>Versamento mensile (€)<input type="number" min="0" step="50" name="monthly" value="200"></label>
+      <label>Rendimento annuo %<input type="number" min="0" max="30" step="0.25" name="rate" value="5"></label>
+      <label>Inflazione annua %<input type="number" min="0" max="20" step="0.25" name="inflation" value="2"></label>
+    </div>
+    <div class="grid" style="margin-top:12px">
+      <label>Anni: <b data-years>20</b><input type="range" min="1" max="60" name="years" value="20"></label>
+      <label>Capitalizzazione<div class="seg" data-freq></div></label>
+      <label>Tassa sugli interessi <span class="small">· Italia: 26% su ETF e conti, 12,5% sui titoli di Stato</span><div class="seg" data-tax></div></label>
+    </div>
+    <div data-out></div>
+    <p class="small muted">Rendimento costante ogni anno: nella realtà varia, e con le azioni l'ordine dei rendimenti conta. Tassa applicata sugli
+    interessi alla fine, come per un ETF ad accumulazione venduto quel giorno. Solo didattico, non è consulenza finanziaria.</p>`;
+  const val = n => Number($(`[name=${n}]`, body).value) || 0;
+  const clamp = (v, hi) => Math.min(Math.max(v, 0), hi);
+  const update = async () => {
+    const out = $("[data-out]", body), years = val("years"), rate = clamp(val("rate"), 30), infl = clamp(val("inflation"), 20);
+    $("[data-years]", body).textContent = years;
+    try {
+      const r = await call("/api/interest", "POST", {principal: val("principal"), monthly: val("monthly"), rate, inflation: infl,
+                                                      years, compounding: freq, tax});
+      const rows = r.rows, last = rows.at(-1);
+      const share = last["Interessi composto"] / Math.max(last.Composto, 1) * 100;
+      out.innerHTML = `<div class="metrics">${metric("Valore finale", whole(last.Composto), `+${whole(last.Composto - last.Semplice)} vs semplice`, "good")}
+          ${metric("Totale versato", whole(last.Versato))}
+          ${metric("Netto, in euro di oggi", whole(last["Composto netto reale"]), `Dopo la tassa del ${pct(tax)}% e ${pct(infl)}% di inflazione l'anno`)}</div>
+        <p>Gli interessi composti valgono <b>${whole(last["Interessi composto"])}</b>, il <b>${share.toFixed(0)}%</b> del valore finale.
+        ${r.doubling === null ? "" : `Con il ${pct(rate)}% l'anno il solo capitale raddoppia in <b>${pct(r.doubling.toFixed(1))} anni</b>.`}</p>
+        <h3>Crescita in ${years} anni <small>· area = versato + interessi composti, tratteggio = stesso piano con interesse semplice</small></h3>
+        <div class="card">${canvas("int", 360)}</div>
+        <details><summary>Tabella anno per anno</summary><div class="table"><table>
+          <tr><th>Anno</th><th>Versato €</th><th>Semplice €</th><th>Composto €</th><th>Interessi €</th><th>Netto €</th><th>Netto reale €</th></tr>
+          ${rows.map(x => `<tr><td class="num">${x.Anno}</td>${["Versato", "Semplice", "Composto", "Interessi composto", "Composto netto", "Composto netto reale"]
+            .map(c => `<td class="num">${num(x[c], 0)}</td>`).join("")}</tr>`).join("")}</table></div></details>`;
+      chart($("#int"), {type: "line", data: {labels: rows.map(x => x.Anno), datasets: [
+          {label: "Versato", data: rows.map(x => x.Versato), borderColor: css("--r-defl"), backgroundColor: css("--r-defl") + "D9", fill: "origin", pointRadius: 0, tension: .3},
+          {label: "Interessi composti", data: rows.map(x => x.Composto), borderColor: css("--accent"), backgroundColor: css("--accent") + "D9", fill: "-1", pointRadius: 0, tension: .3},
+          {label: "Interesse semplice", data: rows.map(x => x.Semplice), borderColor: css("--r-refl"), borderDash: [6, 4], borderWidth: 2, pointRadius: 0}]},
+        options: {plugins: {tooltip: {callbacks: {label: c => c.datasetIndex === 1
+                    ? `Interessi composti: ${whole(c.parsed.y - rows[c.dataIndex].Versato)} (totale ${whole(c.parsed.y)})`
+                    : `${c.dataset.label}: ${whole(c.parsed.y)}`}}},
+                  scales: {y: {ticks: {callback: v => whole(v)}}, x: {title: {display: true, text: "Anni"}}}}});
+    } catch (e) { if (e.message !== "login") out.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; }
+  };
+  seg($("[data-freq]", body), D.options.compounding, freq, v => { freq = v; update(); });
+  seg($("[data-tax]", body), [0, 12.5, 26], tax, v => { tax = v; update(); }, v => v === 0 ? "Nessuna" : `${pct(v)}%`);
+  body.addEventListener("input", debounce(update, 250));
+  update();
+}
+
+// --- accesso -------------------------------------------------------------------------------------
+function showLogin() {
+  $("#loading").classList.add("hidden"); $("#app").classList.add("hidden"); $("#fab").classList.add("hidden");
+  $("#login").classList.remove("hidden");
+}
+
+$("#login").onsubmit = async e => {
+  e.preventDefault();
+  const f = e.target, btn = $("button", f);
+  btn.disabled = true; $(".err", f).textContent = "";
+  try {
+    await call("/api/login", "POST", {password: f.password.value});
+    f.reset(); f.classList.add("hidden"); $("#logout").classList.remove("hidden"); await load();
+  } catch (err) { $(".err", f).textContent = err.message; }
+  btn.disabled = false;
+};
+
+$("#logout").onclick = async () => { await call("/api/logout", "POST"); location.reload(); };
+
+// Logo e grafici seguono il tema chiaro/scuro del sistema
+const scheme = matchMedia("(prefers-color-scheme: light)");
+const applyScheme = () => { $("#logo").src = scheme.matches ? "logo-mark-light.svg" : "logo-mark.svg"; if (D) render(); };
+scheme.addEventListener("change", applyScheme);
+
+(async () => {
+  applyScheme();
+  try {
+    const s = await call("/api/session");
+    if (s.auth && !s.configured) { $("#loading").textContent = "Login non configurato: mancano APP_PASSWORD e SESSION_SECRET su Vercel."; return; }
+    if (!s.logged_in) { showLogin(); return; }
+    if (s.auth) $("#logout").classList.remove("hidden");
+    await load();
+  } catch (e) { if (e.message !== "login") $("#loading").textContent = e.message; }
+})();
+</script>
+</body>
+</html>

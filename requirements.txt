@@ -1,5 +1,6 @@
+# Versione web su Vercel (api/index.py). L'app Streamlit usa src/requirements.txt.
 pandas>=2.2
-streamlit[auth]>=1.42
+numpy>=1.26
 sqlalchemy>=2.0
 psycopg2-binary>=2.9
-pytest>=8.0
+starlette>=0.40

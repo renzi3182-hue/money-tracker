@@ -1,12 +1,13 @@
-"""Movimenti (spese ed entrate) e investimenti (strumenti e operazioni). Online Postgres (Neon) via st.connection("sql") con l'URL in
-secrets [connections.sql]; senza quel secret SQLite locale in data/money.db. Ogni query filtra per user_id."""
+"""Movimenti (spese ed entrate) e investimenti (strumenti e operazioni). Online Postgres (Neon) con l'URL nella variabile
+d'ambiente DATABASE_URL (su Streamlit la imposta app.py dai secrets); senza, SQLite locale in data/money.db.
+Ogni query filtra per user_id."""
+import os
 from datetime import date
 from functools import cache
 from pathlib import Path
 
 import pandas as pd
 import sqlalchemy as sa
-import streamlit as st
 
 LOCAL_URL = f"sqlite:///{Path(__file__).resolve().parent.parent / 'data' / 'money.db'}"
 
@@ -54,33 +55,27 @@ operations = sa.Table(
 )
 
 
-def secret(key: str):
-    """Valore da secrets.toml, None se manca il file o la chiave."""
-    try:
-        return st.secrets.get(key)
-    except FileNotFoundError:
-        return None
-
-
 def remote() -> bool:
-    return bool((secret("connections") or {}).get("sql"))
+    return bool(os.environ.get("DATABASE_URL"))
 
 
 def _engine(url: str | None = None) -> sa.Engine:
-    """url esplicito (test) > secrets [connections.sql] > SQLite locale."""
-    url = url or (None if remote() else LOCAL_URL)
-    if url and url.startswith("sqlite:///"):
-        Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
-    # pool_pre_ping: Neon chiude le connessioni quando si addormenta, senza ping la prima query dopo fallisce
-    engine = (st.connection("sql", url=url, pool_pre_ping=True) if url
-              else st.connection("sql", pool_pre_ping=True)).engine
-    _create(engine)
-    return engine
+    """url esplicito (test) > DATABASE_URL > SQLite locale."""
+    return _create(url or os.environ.get("DATABASE_URL") or LOCAL_URL)
 
 
 @cache
-def _create(engine: sa.Engine) -> None:
+def _create(url: str) -> sa.Engine:
+    # Neon e Vercel danno postgres(ql)://: SQLAlchemy lo leggerebbe come psycopg 3, installato c'è psycopg2
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            url = "postgresql+psycopg2://" + url.removeprefix(prefix)
+    if url.startswith("sqlite:///"):
+        Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
+    # pool_pre_ping: Neon chiude le connessioni quando si addormenta, senza ping la prima query dopo fallisce
+    engine = sa.create_engine(url, pool_pre_ping=True)
     _meta.create_all(engine)
+    return engine
 
 
 def add(day: date, kind: str, amount: float, category: str, method: str, note: str = "",

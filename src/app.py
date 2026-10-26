@@ -1,3 +1,4 @@
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -9,7 +10,21 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from src import db, stats
+
+
+def secret(key: str):
+    """Valore da secrets.toml, None se manca il file o la chiave."""
+    try:
+        return st.secrets.get(key)
+    except FileNotFoundError:
+        return None
+
+
+# db legge l'URL del database da DATABASE_URL (la stessa variabile della versione Vercel)
+if url := (secret("connections") or {}).get("sql", {}).get("url"):
+    os.environ["DATABASE_URL"] = url
+
+from src import db, stats  # noqa: E402
 from src.ui.theme import categorical, chart, hex_color, page_css
 
 LOGO_DIR = Path(__file__).resolve().parent.parent / "assets"
@@ -22,12 +37,12 @@ st.html(page_css(mode))
 # --- accesso ---------------------------------------------------------------------------------------
 # Con [auth] nei secrets: login Google; entra solo allowed_email, o chiunque con allowed_email = "*"
 # (ognuno vede solo i suoi movimenti, user_id = email). Senza secrets: uso locale, utente "me".
-if db.secret("auth"):
+if secret("auth"):
     if not st.user.is_logged_in:
         st.title("Le tue finanze")
         st.button("Accedi con Google", type="primary", on_click=st.login)
         st.stop()
-    allowed = (db.secret("allowed_email") or "").strip().lower()
+    allowed = (secret("allowed_email") or "").strip().lower()
     email = (st.user.email or "").strip().lower()
     if not email or not allowed or (allowed != "*" and email != allowed):
         st.error("Questo account non ha accesso.")
@@ -36,7 +51,7 @@ if db.secret("auth"):
     USER = email
     st.sidebar.caption(st.user.email)
     st.sidebar.button("Esci", on_click=st.logout)
-elif db.remote() and not db.secret("private_app"):  # DB online senza login: dati esposti a chiunque, meglio fermarsi
+elif db.remote() and not secret("private_app"):  # DB online senza login: dati esposti a chiunque, meglio fermarsi
     st.error("Manca la sezione [auth] nei secrets: login obbligatorio con il database online.")
     st.stop()
 else:  # locale, o app privata su Community Cloud (private_app = true: l'accesso lo filtra Streamlit)
