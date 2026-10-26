@@ -24,13 +24,13 @@ L'app Streamlit continua a funzionare: ora le sue dipendenze stanno in `src/requ
 | Nome | Valore |
 | --- | --- |
 | `DATABASE_URL` | La connection string di Neon, la stessa dei Secrets di Streamlit (`[connections.sql] url`). |
-| `APP_PASSWORD` | Una password lunga, almeno 16 caratteri. Salvala nel tuo password manager. |
+| `APP_PASSWORD` | Una password di almeno 16 caratteri (più corta il login resta chiuso). Salvala nel tuo password manager. |
 | `SESSION_SECRET` | Una stringa casuale: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `USER_ID` | `me`. Se su Streamlit avevi attivato il login Google, usa la tua email: è lo `user_id` dei dati su Neon. |
 
 4. Premi **Deploy**. Dopo un minuto circa Vercel mostra l'indirizzo, tipo `money-tracker-xxx.vercel.app`.
 
-Senza `APP_PASSWORD` o `SESSION_SECRET` l'app non fa entrare nessuno: lo fa apposta, così i dati non restano mai aperti.
+Senza `SESSION_SECRET`, o con una `APP_PASSWORD` più corta di 16 caratteri, l'app non fa entrare nessuno: lo fa apposta, così i dati non restano mai aperti.
 
 ## 3. Controllo
 

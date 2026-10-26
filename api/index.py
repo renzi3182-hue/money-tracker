@@ -4,6 +4,7 @@ login e trasformazione in JSON. In locale serve anche public/ (su Vercel la serv
 
 Variabili d'ambiente: DATABASE_URL (Neon), APP_PASSWORD e SESSION_SECRET (login), USER_ID (default "me", lo user_id dei
 dati già su Neon). Senza DATABASE_URL: SQLite locale e nessun login."""
+import asyncio
 import hashlib
 import hmac
 import math
@@ -25,6 +26,7 @@ sys.path.insert(0, str(ROOT))
 from src import db, stats  # noqa: E402
 
 COOKIE = "mt_session"
+MIN_PASSWORD = 16  # senza limite ai tentativi la difesa è la lunghezza: sotto i 16 caratteri il login resta chiuso
 SESSION_DAYS = 90
 USER = os.environ.get("USER_ID", "me")
 
@@ -53,7 +55,7 @@ def _auth_required() -> bool:
 
 
 def _auth_configured() -> bool:
-    return bool(os.environ.get("APP_PASSWORD") and os.environ.get("SESSION_SECRET"))
+    return len(os.environ.get("APP_PASSWORD", "")) >= MIN_PASSWORD and bool(os.environ.get("SESSION_SECRET"))
 
 
 def _logged_in(request: Request) -> bool:
@@ -92,7 +94,7 @@ async def login(request: Request):
     except ValueError:
         password = ""
     if not hmac.compare_digest(password.encode(), os.environ["APP_PASSWORD"].encode()):
-        time.sleep(1)  # shortcut: rallenta i tentativi ma non li blocca; per un vero limite serve uno store (Vercel KV)
+        await asyncio.sleep(1)  # shortcut: rallenta i tentativi ma non li blocca; per un vero limite serve uno store (Vercel KV o tabella su Neon)
         return _json({"error": "Password sbagliata."}, status_code=401)
     expires = int(time.time()) + SESSION_DAYS * 86400
     res = _json({"ok": True})

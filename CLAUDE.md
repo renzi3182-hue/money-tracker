@@ -24,7 +24,7 @@ Anteprima: configurazioni `money-tracker-web` (porta 8520, dati locali veri), `m
 - Ogni query filtra per `user_id`: `USER` in `app.py` (`"me"` o l'email Google), variabile `USER_ID` su Vercel (default `"me"`).
 - Database scelto da `DATABASE_URL` (su Streamlit la imposta `app.py` dai secrets `[connections.sql] url`); assente = SQLite locale. `db.py` non importa Streamlit. Tabelle create da `db._create` al primo accesso. I test usano il parametro `url` con un SQLite temporaneo.
 - Login fail-closed: con il DB online ma senza `[auth]` (Streamlit) o senza `APP_PASSWORD`/`SESSION_SECRET` (Vercel) nessuno entra.
-- Login Vercel: password unica, cookie `mt_session` = scadenza + HMAC con chiave da `SESSION_SECRET` e `APP_PASSWORD` (cambiare password chiude le sessioni). Nessun limite ai tentativi oltre 1 s di attesa: password lunga obbligatoria.
+- Login Vercel: password unica, cookie `mt_session` = scadenza + HMAC con chiave da `SESSION_SECRET` e `APP_PASSWORD` (cambiare password chiude le sessioni). Nessun limite ai tentativi oltre 1 s di attesa: per questo `APP_PASSWORD` sotto i 16 caratteri tiene il login chiuso (`MIN_PASSWORD`).
 - Il confronto col periodo precedente è a pari giorni trascorsi (`stats.previous_window`), non sul periodo intero.
 - Categorie e metodi di pagamento sono costanti in cima a `src/db.py`.
 - UI: colori solo dai token in `src/ui/theme.py` (copia di quelli di macro-cycle-tracker) e `.streamlit/config.toml`; grafici passano da `theme.chart`. Nella versione web gli stessi token sono variabili CSS in cima a `public/index.html`, i grafici passano da `chart()`.

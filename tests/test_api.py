@@ -12,13 +12,13 @@ TODAY = date.today().isoformat()
 def client(tmp_path, monkeypatch):
     # DATABASE_URL presente = login obbligatorio, come online; qui punta a un SQLite temporaneo
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'm.db'}")
-    monkeypatch.setenv("APP_PASSWORD", "segreta")
+    monkeypatch.setenv("APP_PASSWORD", "segreta-lunga-di-prova")
     monkeypatch.setenv("SESSION_SECRET", "x" * 32)
     return TestClient(app)
 
 
 def login(client):
-    assert client.post("/api/login", json={"password": "segreta"}).status_code == 200
+    assert client.post("/api/login", json={"password": "segreta-lunga-di-prova"}).status_code == 200
 
 
 def test_login_required_and_fail_closed(client, monkeypatch):
@@ -29,8 +29,10 @@ def test_login_required_and_fail_closed(client, monkeypatch):
     client.cookies.set("mt_session", "9999999999.falsa")
     assert client.get("/api/dashboard").status_code == 401
     login(client)
-    monkeypatch.setenv("APP_PASSWORD", "nuova")  # cambiare password chiude le sessioni aperte
+    monkeypatch.setenv("APP_PASSWORD", "nuova-password-lunga")  # cambiare password chiude le sessioni aperte
     assert client.get("/api/dashboard").status_code == 401
+    monkeypatch.setenv("APP_PASSWORD", "corta")  # sotto i 16 caratteri il login resta chiuso
+    assert client.post("/api/login", json={"password": "corta"}).status_code == 503
     monkeypatch.delenv("APP_PASSWORD")  # DB online senza password: nessuno entra
     assert client.get("/api/dashboard").status_code == 401
 

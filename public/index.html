@@ -726,7 +726,7 @@ scheme.addEventListener("change", applyScheme);
   applyScheme();
   try {
     const s = await call("/api/session");
-    if (s.auth && !s.configured) { $("#loading").textContent = "Login non configurato: mancano APP_PASSWORD e SESSION_SECRET su Vercel."; return; }
+    if (s.auth && !s.configured) { $("#loading").textContent = "Login non configurato: su Vercel servono SESSION_SECRET e una APP_PASSWORD di almeno 16 caratteri."; return; }
     if (!s.logged_in) { showLogin(); return; }
     if (s.auth) $("#logout").classList.remove("hidden");
     await load();
