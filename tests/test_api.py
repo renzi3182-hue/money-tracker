@@ -47,6 +47,10 @@ def test_movements_roundtrip_and_validation(client):
     data = client.get("/api/dashboard").json()
     assert [m["note"] for m in data["movements"]] == ["pane"]
     assert data["periods"]["M"]["spent"] == 12.5 and data["periods"]["D"]["category"][0]["category"] == "Casa"
+    assert data["wealth"]["cash"] is None
+    assert client.put("/api/start", json={"date": TODAY, "amount": 1000}).status_code == 200
+    assert client.put("/api/start", json={"date": TODAY, "amount": "1000"}).status_code == 400
+    assert client.get("/api/dashboard").json()["wealth"]["cash"] == 1000  # movimenti del giorno stesso già dentro
     client.request("DELETE", "/api/movements", json={"ids": [data["movements"][0]["id"]]})
     assert client.get("/api/dashboard").json()["periods"] is None
 

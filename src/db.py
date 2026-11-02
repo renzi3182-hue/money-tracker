@@ -54,6 +54,14 @@ operations = sa.Table(
     sa.Column("fees", sa.Float, sa.CheckConstraint("fees >= 0"), nullable=False, server_default="0"),
 )
 
+# Saldo del conto a una data, inserito a mano: da lì la liquidità segue movimenti e operazioni. Uno per utente
+accounts = sa.Table(
+    "accounts", _meta,
+    sa.Column("user_id", sa.Text, primary_key=True),
+    sa.Column("date", sa.Date, nullable=False),
+    sa.Column("amount", sa.Float, nullable=False),
+)
+
 
 def remote() -> bool:
     return bool(os.environ.get("DATABASE_URL"))
@@ -139,3 +147,17 @@ def load_investments(user_id: str = "me", url: str | None = None) -> tuple[pd.Da
         ins = pd.read_sql(sa.select(i.name, i.kind, i.price, i.target).where(i.user_id == user_id).order_by(i.name), con)
     ops["date"] = pd.to_datetime(ops["date"])
     return ops, ins
+
+
+def load_start(user_id: str = "me", url: str | None = None) -> tuple[date, float] | None:
+    """(data, saldo del conto a fine giornata) inseriti dall'utente, o None se mai inseriti."""
+    a = accounts.c
+    with _engine(url).connect() as con:
+        row = con.execute(sa.select(a.date, a.amount).where(a.user_id == user_id)).first()
+    return (row.date, row.amount) if row else None
+
+
+def set_start(day: date, amount: float, user_id: str = "me", url: str | None = None) -> None:
+    with _engine(url).begin() as con:  # delete + insert: stesso codice per SQLite e Postgres
+        con.execute(accounts.delete().where(accounts.c.user_id == user_id))
+        con.execute(accounts.insert().values(user_id=user_id, date=day, amount=round(amount, 2)))

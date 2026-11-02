@@ -73,7 +73,7 @@ def api(handler):
         if not _logged_in(request):
             return _json({"error": "login"}, status_code=401)
         try:
-            body = await request.json() if request.method in ("POST", "PATCH", "DELETE") else {}
+            body = await request.json() if request.method in ("POST", "PUT", "PATCH", "DELETE") else {}
             return _json(_clean(handler(body if isinstance(body, dict) else {})))
         except Invalid as e:
             return _json({"error": str(e)}, status_code=400)
@@ -182,10 +182,21 @@ def _period(df: pd.DataFrame, today: date, freq: str) -> dict:
     return out
 
 
+def _wealth(df: pd.DataFrame) -> dict:
+    """Liquidità (conto) e investimenti (valore ai prezzi attuali) separati: il totale è solo la loro somma."""
+    ops, ins = db.load_investments(USER)
+    pos = stats.ledger(ops, ins)[0]
+    start = db.load_start(USER)
+    return {"start": {"date": start[0], "amount": start[1]} if start else None,
+            "cash": stats.cash(start, df, ops), "invested": pos["value"].sum(), "gain": pos["gain"].sum(),
+            "positions": len(pos)}
+
+
 @api
 def dashboard(_):
     df, today = db.load(USER), date.today()
     return {
+        "wealth": _wealth(df),
         "today": today,
         "options": {"kinds": db.KINDS, "expense": db.EXPENSE_CATEGORIES, "income": db.INCOME_CATEGORIES,
                     "methods": db.METHODS, "asset_kinds": db.ASSET_KINDS, "sides": db.SIDES,
@@ -202,6 +213,12 @@ def add_movement(body):
     category = _choice(body, "category", db.EXPENSE_CATEGORIES if kind == "spesa" else db.INCOME_CATEGORIES)
     amount = _num(body, "amount", strict=True)
     db.add(_day(body), kind, amount, category, _choice(body, "method", db.METHODS), _text(body, "note", 200), user_id=USER)
+    return {"ok": True}
+
+
+@api
+def set_start(body):
+    db.set_start(_day(body), _num(body, "amount", low=-1e9), user_id=USER)
     return {"ok": True}
 
 
@@ -326,6 +343,7 @@ routes = [
     Route("/api/logout", logout, methods=["POST"]),
     Route("/api/dashboard", dashboard),
     Route("/api/movements", add_movement, methods=["POST"]), Route("/api/movements", delete_movements, methods=["DELETE"]),
+    Route("/api/start", set_start, methods=["PUT"]),
     Route("/api/investments", investments),
     Route("/api/operations", add_operation, methods=["POST"]),
     Route("/api/operations", delete_operations, methods=["DELETE"]),

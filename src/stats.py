@@ -230,3 +230,18 @@ def rebalance(values: pd.Series, targets: pd.Series, cash: float) -> pd.Series:
     in proporzione a quanto mancano per tornare al peso dopo il versamento."""
     gap = (targets / targets.sum() * (values.sum() + cash) - values).clip(lower=0)
     return gap * 0 if cash <= 0 or gap.sum() == 0 else gap * cash / gap.sum()
+
+
+def cash(start: tuple[date, float] | None, df: pd.DataFrame, ops: pd.DataFrame) -> float | None:
+    """Liquidità oggi: saldo del conto a fine `start[0]` più entrate, meno spese, meno acquisti di investimenti (con
+    commissioni), più incassi delle vendite, tutti dal giorno dopo. Gli acquisti spostano soldi dalla liquidità agli
+    investimenti, così le due cifre non si sommano due volte. None senza saldo di partenza."""
+    if start is None:
+        return None
+    day = pd.Timestamp(start[0])
+    after = df[df["date"] > day]
+    flow = after.loc[after["kind"] == "entrata", "amount"].sum() - after.loc[after["kind"] == "spesa", "amount"].sum()
+    o = ops[ops["date"] > day]
+    gross = o["quantity"] * o["price"]
+    trades = (gross - o["fees"]).where(o["side"] == "vendita", -(gross + o["fees"])).sum()
+    return float(start[1] + flow + trades)

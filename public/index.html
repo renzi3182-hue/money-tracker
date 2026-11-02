@@ -21,6 +21,8 @@
   --r-gold: #7BE0A4; --r-defl: #8AB4FF; --r-refl: #FFC878; --r-stag: #FF9DA7;
   --c1: #5EEAD4; --c2: #8AB4FF; --c3: #FFC878; --c4: #FF9DA7; --c5: #7BE0A4; --c6: #C4A8FF; --c7: #8FA6B2;
   --shadow: 0 8px 24px rgba(0,0,0,.35);
+  --glass: rgba(23,35,48,.72); --glow: rgba(94,234,212,.10);
+  --ease: cubic-bezier(.2,.8,.2,1);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
@@ -30,12 +32,16 @@
     --r-gold: #177A4D; --r-defl: #2F6DB5; --r-refl: #8F5A05; --r-stag: #C0394B;
     --c1: #0A7F70; --c2: #2F6DB5; --c3: #8F5A05; --c4: #C0394B; --c5: #177A4D; --c6: #6B4FB8; --c7: #4F6472;
     --shadow: 0 4px 16px rgba(15,23,32,.08);
+    --glass: rgba(255,255,255,.78); --glow: rgba(10,127,112,.08);
     color-scheme: light;
   }
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 "Plus Jakarta Sans", system-ui, sans-serif; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 "Plus Jakarta Sans", system-ui, sans-serif; min-height: 100vh; }
+/* alone menta fisso dietro la pagina: la "luce" del Soft Glass */
+body::before { content: ""; position: fixed; inset: -20vh -10vw auto; height: 70vh; z-index: -1; pointer-events: none;
+  background: radial-gradient(60% 60% at 70% 20%, var(--glow), transparent 70%), radial-gradient(40% 50% at 10% 0%, var(--glow), transparent 70%); }
 main { max-width: 1100px; margin: 0 auto; padding: 16px 16px 96px; }
 h1 { font-weight: 800; letter-spacing: -.03em; font-size: 28px; margin: 8px 0 4px; }
 h3 { font-size: 15px; font-weight: 600; margin: 24px 0 8px; }
@@ -44,6 +50,9 @@ h3 small, .muted { color: var(--muted); font-weight: 400; }
 .num { font-family: "DM Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 header { display: flex; align-items: center; gap: 10px; }
 header img { width: 32px; height: 32px; }
+/* logo in vetro animato (render fal.ai, lo stesso del sito): solo sul tema scuro, sul chiaro resta il marchio piatto */
+header video { width: 40px; height: 40px; margin: -4px; border-radius: 10px; object-fit: cover; display: none; }
+@media (prefers-color-scheme: dark) { header video { display: block; } header video + img { display: none; } }
 header .brand { font-weight: 800; letter-spacing: -.03em; font-size: 18px; flex: 1; }
 .hidden { display: none !important; }
 
@@ -71,17 +80,74 @@ label > .seg { display: flex; width: fit-content; }
 .tabs button.on { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
 
 .metrics { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin: 8px 0; }
-.metric { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px 18px; box-shadow: var(--shadow); }
+.metric { background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line);
+  border-radius: 18px; padding: 14px 18px; box-shadow: var(--shadow); transition: transform .25s var(--ease); }
+@media (hover: hover) { .metric:hover, .card:hover { transform: translateY(-2px); } }
 .metric .k { font-size: 13px; color: var(--muted); }
 .metric .v { font-family: "DM Mono", monospace; font-size: 26px; font-weight: 500; letter-spacing: -.02em; }
 .metric .d { font-size: 13px; color: var(--muted); }
 .good { color: var(--r-gold) !important; } .bad { color: var(--r-stag) !important; }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px; }
+.card { background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line);
+  border-radius: 18px; padding: 16px; transition: transform .25s var(--ease); }
 .charts { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .chart { position: relative; height: 280px; }
 .note { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px;
   padding: 10px 14px; margin: 10px 0; }
 .note.warn { border-left-color: var(--r-refl); }
+
+/* Saldo: liquidità e investimenti in due blocchi separati, il totale sotto */
+.wealth { position: relative; overflow: hidden; border-radius: 28px; border: 1px solid var(--line); margin: 12px 0 18px;
+  background: linear-gradient(135deg, var(--surface), var(--raised)); box-shadow: var(--shadow); padding: 20px; }
+.wealth > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .55; pointer-events: none; }
+.wealth > *:not(video) { position: relative; }
+/* le onde sono un video scuro: sul tema chiaro resta solo il gradiente */
+@media (prefers-color-scheme: light) { .wealth > video { display: none; } }
+.wealth .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 14px; }
+.wealth .top span { font-size: 13px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.wealth .pots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pot { background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line);
+  border-radius: 18px; padding: 14px 16px; min-width: 0; }
+.pot .k { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.pot .k i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.pot .v { font-family: "DM Mono", monospace; font-size: 30px; font-weight: 500; letter-spacing: -.03em; margin: 2px 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pot .d { font-size: 13px; color: var(--muted); }
+.pot button { margin-top: 8px; }
+.split { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; margin: 16px 0 8px; background: var(--line); }
+.split div { transition: flex-grow .9s var(--ease); flex-basis: 0; }
+.wealth .total { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; color: var(--muted); }
+.wealth .total b { font-family: "DM Mono", monospace; font-size: 18px; color: var(--fg); font-weight: 500; }
+
+/* Legenda in HTML sopra i grafici: un pallino o un tratto per serie, nome e valore in chiaro */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend b { color: var(--fg); font-weight: 600; font-family: "DM Mono", monospace; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.legend i.dash { height: 0; border-radius: 0; border-top: 2px dashed currentColor; }
+.legend i.ln { height: 3px; border-radius: 2px; }
+/* Classifica per categoria e metodo: barre orizzontali in HTML, nome e cifra sulla stessa riga */
+.rank { display: grid; gap: 10px; }
+.rank .r { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 14px; }
+.rank .r span:last-child { font-family: "DM Mono", monospace; text-align: right; }
+.rank .r small { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.rank .bar { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--raised); overflow: hidden; }
+.rank .bar div { height: 100%; border-radius: 4px; width: 0; transition: width .8s var(--ease); }
+
+/* Stati vuoti e caricamento: illustrazioni in vetro (fal.ai) che fluttuano piano, bordi sfumati nello sfondo */
+.empty { display: grid; justify-items: center; text-align: center; gap: 4px; margin: 28px auto; max-width: 360px; }
+.empty img { width: 180px; height: 180px; -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent);
+  mask-image: radial-gradient(closest-side, #000 55%, transparent); animation: float 4s ease-in-out infinite; }
+@keyframes float { 50% { transform: translateY(-8px); } }
+
+/* Entrata morbida delle sezioni; niente movimento per chi lo ha ridotto nel sistema */
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.rise > * { animation: rise .5s var(--ease) both; }
+.rise > *:nth-child(2) { animation-delay: .05s; } .rise > *:nth-child(3) { animation-delay: .1s; }
+.rise > *:nth-child(4) { animation-delay: .15s; } .rise > *:nth-child(n+5) { animation-delay: .2s; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .wealth > video { display: none; }
+}
 
 .day { margin: 16px 0 6px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .day b { font-size: 15px; }
@@ -120,12 +186,16 @@ dialog form { display: grid; gap: 12px; }
   .metric .v { font-size: 20px; }
   .metric .d { flex-basis: 100%; }
   .chart { height: 240px; }
+  .wealth { padding: 16px; border-radius: 22px; }
+  .wealth .pots { grid-template-columns: 1fr; gap: 8px; }
+  .pot .v { font-size: 26px; }
 }
 </style>
 </head>
 <body>
 <main>
   <header>
+    <video id="glass" autoplay muted loop playsinline poster="glass-icon.webp" aria-hidden="true"><source src="glass-icon.mp4" type="video/mp4"></video>
     <img id="logo" src="logo-mark.svg" alt="">
     <span class="brand">Soft Investing</span>
     <button id="logout" class="ghost small hidden">Esci</button>
@@ -140,11 +210,12 @@ dialog form { display: grid; gap: 12px; }
 
   <div id="app" class="hidden">
     <h1>Le tue finanze</h1>
+    <section class="wealth" id="wealth" aria-label="Saldo"><video autoplay muted loop playsinline poster="onde-saldo.jpg" aria-hidden="true"><source src="onde-saldo.mp4" type="video/mp4"></video></section>
     <div class="seg" id="section"></div>
     <div id="money"></div>
     <div id="invest" class="hidden"></div>
   </div>
-  <div id="loading" class="muted" style="margin-top:24px">Caricamento…</div>
+  <div id="loading" class="empty muted"><img src="caricamento.webp" alt=""><span>Caricamento…</span></div>
 </main>
 
 <button class="primary fab hidden" id="fab" aria-label="Aggiungi movimento">+</button>
@@ -180,6 +251,18 @@ dialog form { display: grid; gap: 12px; }
   </form>
 </dialog>
 
+<dialog id="dlg-start">
+  <h2>Saldo del conto</h2>
+  <form method="dialog">
+    <p class="small muted" style="margin:0">Quanto c'era sul conto (e in contanti) alla fine di un giorno, come lo leggi in banca.
+      Da lì la liquidità si aggiorna da sola con entrate, spese e operazioni di investimento registrate dopo.</p>
+    <label>Alla fine del giorno<input type="date" name="date" required></label>
+    <label>Saldo (€)<input type="number" name="amount" inputmode="decimal" step="0.01" required></label>
+    <div class="err"></div>
+    <div class="actions"><button class="primary" value="save">Salva</button><button value="cancel" formnovalidate>Annulla</button></div>
+  </form>
+</dialog>
+
 <div id="toast" class="hidden"></div>
 
 <script>
@@ -197,6 +280,8 @@ const parseDay = s => { const [y, m, d] = s.split("-").map(Number); return new D
 const fmtDay = s => s.split("-").reverse().join("/");
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const palette = () => [1, 2, 3, 4, 5, 6, 7].map(i => css(`--c${i}`));
+const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (calm()) document.querySelectorAll("video").forEach(v => v.pause()); // movimento ridotto: video fermi sul poster
 const isoToday = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 
 async function call(path, method = "GET", body) {
@@ -250,7 +335,8 @@ function chart(canvas, config) {
   Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
   Chart.defaults.color = muted;
   const axis = {grid: {color: line}, border: {color: line}, ticks: {font: {family: "'DM Mono', monospace"}}};
-  config.options = Object.assign({responsive: true, maintainAspectRatio: false, animation: false,
+  config.options = Object.assign({responsive: true, maintainAspectRatio: false,
+    animation: calm() ? false : {duration: 700, easing: "easeOutQuart"},
     interaction: {mode: "index", intersect: false},
     plugins: {legend: {labels: {boxWidth: 12, boxHeight: 12, useBorderRadius: true, borderRadius: 3}}}}, config.options || {});
   if (config.type !== "doughnut") {
@@ -261,7 +347,18 @@ function chart(canvas, config) {
 }
 const euroTick = {callback: v => whole(v)};
 const tooltipEuro = {callbacks: {label: c => `${c.dataset.label || c.label}: ${euro(c.parsed.y ?? c.parsed.x ?? c.parsed)}`}};
+// legenda in HTML: [{color, label, value, kind: "box" | "ln" | "dash"}]
+const legend = items => `<div class="legend">${items.map(i => `<span><i class="${i.kind || ""}" style="${
+  i.kind === "dash" ? `color:${i.color}` : `background:${i.color}`}"></i>${esc(i.label)}${i.value != null ? ` <b>${esc(i.value)}</b>` : ""}</span>`).join("")}</div>`;
 const canvas = (id, h) => `<div class="chart" ${h ? `style="height:${h}px"` : ""}><canvas id="${id}"></canvas></div>`;
+
+function countUp(el, value, fmt = euro) {
+  if (calm() || !value) { el.textContent = fmt(value); return; }
+  const t0 = performance.now(), dur = 900;
+  const step = t => { const k = Math.min(1, (t - t0) / dur); el.textContent = fmt(value * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
 
 // --- stato ---------------------------------------------------------------------------------------
 let D = null;   // /api/dashboard
@@ -286,7 +383,54 @@ function render() {
   $("#money").classList.toggle("hidden", section !== "Spese ed entrate");
   $("#invest").classList.toggle("hidden", section === "Spese ed entrate");
   $("#fab").classList.toggle("hidden", section !== "Spese ed entrate");
+  renderWealth();
   section === "Investimenti" ? renderInvest() : renderMoney();
+}
+
+// --- saldo ---------------------------------------------------------------------------------------
+let wealthShown = null; // ultime cifre mostrate: il conteggio riparte solo se cambiano
+function renderWealth() {
+  const w = D.wealth, el = $("#wealth");
+  const cash = w.cash, inv = w.invested, hasCash = cash != null;
+  const key = `${cash}|${inv}`;
+  const animate = key !== wealthShown; wealthShown = key;
+  const video = el.querySelector("video");
+  const gain = w.positions ? `${w.gain >= 0 ? "+" : "−"}${euro(Math.abs(w.gain))} rispetto al costo` : "Nessuno strumento in portafoglio";
+  el.innerHTML = `
+    <div class="top"><span>Il tuo saldo</span>${hasCash ? `<button class="ghost small" data-start>Aggiorna saldo conto</button>` : ""}</div>
+    <div class="pots">
+      <div class="pot"><div class="k"><i style="background:var(--accent)"></i>Liquidità</div>
+        ${hasCash ? `<div class="v num ${cash < 0 ? "bad" : ""}" data-cash></div>
+          <div class="d">Conto dal ${fmtDay(w.start.date)} (${euro(w.start.amount)}) + movimenti dopo</div>`
+        : `<div class="d">Inserisci una volta quanto hai sul conto: poi si aggiorna da sola.</div>
+          <button class="primary small" data-start>Imposta saldo conto</button>`}</div>
+      <div class="pot"><div class="k"><i style="background:var(--c2)"></i>Investimenti</div>
+        <div class="v num" data-inv></div>
+        <div class="d ${w.positions ? (w.gain >= 0 ? "good" : "bad") : ""}">${gain}</div></div>
+    </div>
+    ${hasCash ? `<div class="split" aria-hidden="true"><div style="background:var(--accent)"></div><div style="background:var(--c2)"></div></div>
+      <div class="total"><span>Totale (liquidità + investimenti)</span><b data-total></b></div>` : ""}`;
+  if (video) el.prepend(video);
+  const show = (sel, v) => { const n = $(sel, el); if (n) animate ? countUp(n, v) : n.textContent = euro(v); };
+  show("[data-cash]", cash); show("[data-inv]", inv); show("[data-total]", (cash || 0) + inv);
+  const bars = el.querySelectorAll(".split div");
+  if (bars.length) requestAnimationFrame(() => { // un frame dopo: la transizione parte da zero
+    bars[0].style.flexGrow = Math.max(cash, 0); bars[1].style.flexGrow = inv;
+  });
+  el.querySelectorAll("[data-start]").forEach(b => b.onclick = openStart);
+}
+
+function openStart() {
+  const dlg = $("#dlg-start"), f = $("form", dlg), s = D.wealth.start;
+  f.reset(); f.date.max = isoToday(); f.date.value = s?.date || isoToday(); f.amount.value = s?.amount ?? "";
+  $(".err", f).textContent = "";
+  f.onsubmit = async e => {
+    if (e.submitter?.value !== "save") return;
+    e.preventDefault();
+    try { await call("/api/start", "PUT", {date: f.date.value, amount: Number(f.amount.value)}); dlg.close(); toast("Saldo del conto salvato"); await load(); }
+    catch (err) { if (err.message !== "login") $(".err", f).textContent = err.message; }
+  };
+  dlg.showModal();
 }
 
 // --- spese ed entrate ----------------------------------------------------------------------------
@@ -296,8 +440,8 @@ const WEEKDAYS = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "
 function renderMoney() {
   const el = $("#money");
   if (!D.periods) {
-    el.innerHTML = `<p class="muted">Spese, entrate e risparmio del mese, della settimana e di oggi.</p>
-      <div class="note">Nessun movimento ancora. Aggiungi la prima spesa o entrata con il tasto +.</div>`;
+    el.innerHTML = `<div class="empty"><img src="vuoto.webp" alt=""><b>Nessun movimento ancora</b>
+      <span class="small muted">Aggiungi la prima spesa o entrata con il tasto +: qui vedrai mese, settimana e giorno.</span></div>`;
     return;
   }
   tabs(el, ["Mese", "Settimana", "Giorno", "Entrate e risparmio", "Tutti i movimenti"], (i, body) => {
@@ -313,56 +457,75 @@ function deltaText(now, before) {
   return [`${p >= 0 ? "+" : ""}${p.toFixed(0)}% vs periodo prima`, p > 0 ? "bad" : "good"];
 }
 
+// classifica in HTML: nome, cifra, quota del totale e barra proporzionale, tutto sulla stessa riga
+function rank(rows, key, colors) {
+  const tot = rows.reduce((t, r) => t + r.amount, 0), max = Math.max(...rows.map(r => r.amount));
+  const html = `<div class="rank">${rows.map((r, i) => `<div class="r"><span>${esc(r[key])}<small>${Math.round(r.amount / tot * 100)}%</small></span>
+    <span>${euro(r.amount)}</span><div class="bar"><div style="background:${colors[i]}" data-w="${r.amount / max * 100}"></div></div></div>`).join("")}</div>`;
+  return html;
+}
+const growBars = el => requestAnimationFrame(() => el.querySelectorAll("[data-w]").forEach(b => b.style.width = b.dataset.w + "%"));
+
+const LAST = {D: 14, W: 12, M: 12}; // barre nel grafico dell'andamento: due settimane di giorni bastano a leggerlo
+
 function periodTab(body, f) {
   const p = D.periods[f];
   const saldo = p.income - p.spent;
   const [dt, dc] = deltaText(p.spent, p.before);
   const view = D.movements.filter(m => m.date >= p.start);
   const unit = {D: "giorni", W: "settimane", M: "mesi"}[f];
-  body.innerHTML = `
+  const hist = p.history.slice(-LAST[f]);
+  const accent = css("--accent"), muted = css("--muted"), raised = muted + "59"; // muted al 35%: periodi passati in secondo piano
+  const avg = hist.reduce((t, h) => t + h.amount, 0) / hist.length;
+  const nowName = {D: "Oggi", W: "Questa settimana", M: "Questo mese"}[f];
+  const pastName = {D: "Giorni prima", W: "Settimane prima", M: "Mesi prima"}[f];
+  body.innerHTML = `<div class="rise">
     <div class="metrics">${metric(`Speso ${NAMES[f]}`, euro(p.spent), dt, dc)}${metric("Entrate", euro(p.income))}
-      ${metric("Saldo", euro(saldo), p.income ? `${(saldo / p.income * 100).toFixed(0)}% delle entrate` : "")}</div>
-    <h3>Movimenti di ${NAMES[f]}</h3><div data-list></div>
-    <h3>Andamento delle spese <small>· ultimi ${p.history.length} ${unit}</small></h3>
-    <div class="card">${canvas(`hist-${f}`)}<div class="small muted">Linea tratteggiata: media del periodo.</div></div>
+      ${metric("Differenza", euro(saldo), p.income ? `${(saldo / p.income * 100).toFixed(0)}% delle entrate` : "entrate − spese")}</div>
+    <h3>Andamento delle spese <small>· ultimi ${hist.length} ${unit}</small></h3>
+    <div class="card">${legend([{color: accent, label: nowName, value: euro(p.spent)}, {color: raised, label: pastName},
+      {color: muted, label: "Media", value: euro(avg), kind: "dash"}])}${canvas(`hist-${f}`, 240)}</div>
     <div class="charts">
-      <div><h3>Per categoria <small>· ${NAMES[f]}</small></h3><div class="card" data-cat></div></div>
-      <div><h3>Per metodo di pagamento <small>· ${NAMES[f]}</small></h3><div class="card" data-met></div></div>
+      <div><h3>Dove vanno i soldi <small>· per categoria, ${NAMES[f]}</small></h3><div class="card" data-cat></div></div>
+      <div><h3>Come paghi <small>· per metodo, ${NAMES[f]}</small></h3><div class="card" data-met></div></div>
     </div>
-    ${f === "M" ? `<h3>Questo mese contro il mese scorso <small>· spesa cumulata giorno per giorno</small></h3>
-      <div class="card">${canvas("cum")}</div>` : ""}`;
+    ${f === "M" ? `<h3>Questo mese contro il mese scorso <small>· spesa accumulata giorno per giorno</small></h3>
+      <div class="card" data-cum>${canvas("cum", 240)}</div>` : ""}
+    <h3>Movimenti di ${NAMES[f]}</h3><div data-list></div></div>`;
   movementList($("[data-list]", body), view, "Nessun movimento nel periodo.");
 
-  const accent = css("--accent"), muted = css("--muted");
-  const avg = p.history.reduce((s, h) => s + h.amount, 0) / p.history.length;
-  const labels = p.history.map(h => { const [y, m, d] = h.period.split("-"); return f === "M" ? `${m}/${y.slice(2)}` : `${d}/${m}`; });
+  // barra del periodo in corso in accento, le precedenti neutre: si vede subito dove sei rispetto alla media
+  const labels = hist.map(h => { const [y, m, d] = h.period.split("-"); return f === "M" ? `${m}/${y.slice(2)}` : `${d}/${m}`; });
   chart($(`#hist-${f}`), {type: "bar", data: {labels, datasets: [
-      {type: "line", label: "Media", data: labels.map(() => avg), borderColor: muted, borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0},
-      {label: "Speso", data: p.history.map(h => h.amount), backgroundColor: accent, borderRadius: 6}]},
-    options: {plugins: {legend: {display: false}, tooltip: tooltipEuro}, scales: {y: {ticks: euroTick}, x: {grid: {display: false}}}}});
+      {type: "line", label: "Media", data: labels.map(() => avg), borderColor: muted, borderDash: [5, 5], borderWidth: 1.5, pointRadius: 0},
+      {label: "Speso", data: hist.map(h => h.amount), borderRadius: 6, maxBarThickness: 36,
+       backgroundColor: hist.map((_, i) => i === hist.length - 1 ? accent : raised)}]},
+    options: {plugins: {legend: {display: false}, tooltip: {filter: c => c.datasetIndex === 1, callbacks: {label: c => `Speso: ${euro(c.parsed.y)}`}}},
+      scales: {y: {ticks: {...euroTick, maxTicksLimit: 5}}, x: {grid: {display: false}, ticks: {maxRotation: 0, autoSkipPadding: 8}}}}});
 
   // la palette ha 7 colori: oltre le prime 6 categorie si somma in "Altre"
   let cat = p.category;
-  if (cat.length > 7) cat = [...cat.slice(0, 6), {category: "Altre", amount: cat.slice(6).reduce((s, c) => s + c.amount, 0)}];
-  for (const [sel, rows, key, type] of [["[data-cat]", cat, "category", "doughnut"], ["[data-met]", p.method, "method", "bar"]]) {
+  if (cat.length > 7) cat = [...cat.slice(0, 6), {category: "Altre", amount: cat.slice(6).reduce((t, c) => t + c.amount, 0)}];
+  for (const [sel, rows, key] of [["[data-cat]", cat, "category"], ["[data-met]", p.method, "method"]]) {
     const box = $(sel, body);
-    if (!rows.length) { box.innerHTML = `<div class="small muted">Nessuna spesa nel periodo.</div>`; continue; }
-    box.innerHTML = canvas(`${key}-${f}`);
-    const data = {labels: rows.map(r => r[key]), datasets: [{label: "€", data: rows.map(r => r.amount), backgroundColor: palette(),
-      borderColor: css("--surface"), borderWidth: type === "doughnut" ? 2 : 0, borderRadius: type === "doughnut" ? 4 : 6}]};
-    chart($(`#${key}-${f}`), type === "doughnut"
-      ? {type, data, options: {cutout: "62%", plugins: {legend: {position: "bottom"}, tooltip: {callbacks: {label: c => `${c.label}: ${euro(c.parsed)}`}}}}}
-      : {type, data, options: {indexAxis: "y", plugins: {legend: {display: false}, tooltip: {callbacks: {label: c => euro(c.parsed.x)}}},
-                               scales: {x: {ticks: euroTick}, y: {grid: {display: false}, ticks: {font: {family: "'Plus Jakarta Sans'", size: 13}}}}}});
+    box.innerHTML = rows.length ? rank(rows, key, key === "category" ? palette() : rows.map(() => css("--c2")))
+      : `<div class="small muted">Nessuna spesa nel periodo.</div>`;
+    growBars(box);
   }
 
   if (f === "M") {
     const series = name => p.cumulative.filter(c => c.serie === name);
     const days = Array.from({length: 31}, (_, i) => i + 1);
-    const ds = (name, color) => ({label: name, data: days.map(d => series(name).find(c => c.day === d)?.amount ?? null),
-      borderColor: color, backgroundColor: color, stepped: "after", borderWidth: 2.5, pointRadius: 0, spanGaps: false});
-    chart($("#cum"), {type: "line", data: {labels: days, datasets: [ds("Questo mese", accent), ds("Mese scorso", muted)]},
-      options: {plugins: {tooltip: tooltipEuro}, scales: {y: {ticks: euroTick}, x: {title: {display: true, text: "Giorno del mese"}}}}});
+    const today = parseDay(D.today).getDate();
+    const at = (name, d) => { const r = series(name).filter(c => c.day <= d); return r.length ? r[r.length - 1].amount : 0; };
+    const ds = (name, color, width) => ({label: name, data: days.map(d => series(name).find(c => c.day === d)?.amount ?? null),
+      borderColor: color, backgroundColor: color, stepped: "after", borderWidth: width, pointRadius: 0, spanGaps: false});
+    $("[data-cum]", body).insertAdjacentHTML("afterbegin", legend([
+      {color: accent, label: "Questo mese", value: euro(at("Questo mese", today)), kind: "ln"},
+      {color: muted, label: `Mese scorso al giorno ${today}`, value: euro(at("Mese scorso", today)), kind: "ln"}]));
+    chart($("#cum"), {type: "line", data: {labels: days, datasets: [ds("Questo mese", accent, 3), ds("Mese scorso", muted, 1.5)]},
+      options: {plugins: {legend: {display: false}, tooltip: tooltipEuro},
+        scales: {y: {ticks: {...euroTick, maxTicksLimit: 5}}, x: {grid: {display: false}, ticks: {maxTicksLimit: 8, maxRotation: 0}}}}});
   }
 }
 
@@ -402,12 +565,14 @@ function deleteButton(el, path, noun) {
 function balanceTab(body) {
   const b = D.balance;
   const labels = b.map(r => { const [y, m] = r.month.split("-"); return `${m}/${y.slice(2)}`; });
-  body.innerHTML = `<h3>Entrate e spese per mese <small>· ultimi 12 mesi</small></h3><div class="card">${canvas("bal")}</div>
-    <h3>Tasso di risparmio <small>· quota delle entrate che resta a fine mese</small></h3><div class="card">${canvas("rate", 260)}</div>`;
+  const sum = k => b.reduce((t, r) => t + r[k], 0);
+  body.innerHTML = `<div class="rise"><h3>Entrate e spese per mese <small>· ultimi 12 mesi</small></h3><div class="card">${legend([
+      {color: css("--r-gold"), label: "Entrate", value: whole(sum("income"))}, {color: css("--r-stag"), label: "Spese", value: whole(sum("expense"))}])}${canvas("bal")}</div>
+    <h3>Tasso di risparmio <small>· quota delle entrate che resta a fine mese</small></h3><div class="card">${canvas("rate", 260)}</div></div>`;
   chart($("#bal"), {type: "bar", data: {labels, datasets: [
       {label: "Entrate", data: b.map(r => r.income), backgroundColor: css("--r-gold"), borderRadius: 5},
       {label: "Spese", data: b.map(r => r.expense), backgroundColor: css("--r-stag"), borderRadius: 5}]},
-    options: {plugins: {tooltip: tooltipEuro}, scales: {y: {ticks: euroTick}, x: {grid: {display: false}}}}});
+    options: {plugins: {legend: {display: false}, tooltip: tooltipEuro}, scales: {y: {ticks: euroTick}, x: {grid: {display: false}}}}});
   chart($("#rate"), {type: "line", data: {labels, datasets: [
       {label: "Risparmio %", data: b.map(r => r.rate), borderColor: css("--accent"), backgroundColor: css("--accent"), borderWidth: 2.5, spanGaps: true},
       {label: "zero", data: labels.map(() => 0), borderColor: css("--muted"), borderWidth: 1, pointRadius: 0}]},
@@ -726,11 +891,11 @@ scheme.addEventListener("change", applyScheme);
   applyScheme();
   try {
     const s = await call("/api/session");
-    if (s.auth && !s.configured) { $("#loading").textContent = "Login non configurato: su Vercel servono SESSION_SECRET e una APP_PASSWORD di almeno 16 caratteri."; return; }
+    if (s.auth && !s.configured) { $("#loading span").textContent = "Login non configurato: su Vercel servono SESSION_SECRET e una APP_PASSWORD di almeno 16 caratteri."; return; }
     if (!s.logged_in) { showLogin(); return; }
     if (s.auth) $("#logout").classList.remove("hidden");
     await load();
-  } catch (e) { if (e.message !== "login") $("#loading").textContent = e.message; }
+  } catch (e) { if (e.message !== "login") $("#loading span").textContent = e.message; }
 })();
 </script>
 </body>

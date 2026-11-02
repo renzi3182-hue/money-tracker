@@ -147,3 +147,20 @@ def test_investments_db_roundtrip(tmp_path):
     db.delete_operations(ops["id"].tolist(), url=url)
     ops, ins = db.load_investments(url=url)
     assert ops.empty and ins.empty and len(db.load_investments("altro", url=url)[1]) == 1
+
+
+def test_cash_follows_movements_and_trades_after_start():
+    ops = _ops([("2026-10-01", "VWCE", "acquisto", 1, 999, 0),     # prima del saldo: già dentro la cifra di partenza
+                ("2026-10-12", "VWCE", "acquisto", 2, 100, 1),     # -201
+                ("2026-10-14", "VWCE", "vendita", 1, 110, 1)])     # +109
+    assert stats.cash(None, DF, ops) is None
+    # dopo il 05/10: spese 30 + 0.5 + 20 + 10, nessuna entrata
+    assert stats.cash((date(2026, 10, 5), 1000), DF, ops) == pytest.approx(1000 - 60.5 - 201 + 109)
+
+
+def test_start_balance_db_roundtrip(tmp_path):
+    url = f"sqlite:///{tmp_path / 'm.db'}"
+    assert db.load_start(url=url) is None
+    db.set_start(date(2026, 10, 1), 1500.456, url=url)
+    db.set_start(date(2026, 10, 2), -20, url=url)  # sostituisce, anche in rosso
+    assert db.load_start(url=url) == (date(2026, 10, 2), -20) and db.load_start("altro", url=url) is None
