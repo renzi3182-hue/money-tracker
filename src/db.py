@@ -63,6 +63,20 @@ accounts = sa.Table(
 )
 
 
+# Account della versione web: email e password (hash PBKDF2, lo calcola api/index.py). data_id è lo user_id delle
+# tabelle sopra: l'email, tranne per il proprietario che tiene "me" (i dati già su Neon). failed e locked_until
+# bloccano l'account per qualche minuto dopo troppe password sbagliate.
+users = sa.Table(
+    "users", _meta,
+    sa.Column("id", sa.Integer, primary_key=True),
+    sa.Column("email", sa.Text, nullable=False, unique=True),
+    sa.Column("password", sa.Text, nullable=False),
+    sa.Column("data_id", sa.Text, nullable=False, unique=True),
+    sa.Column("failed", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("locked_until", sa.Float, nullable=False, server_default="0"),
+)
+
+
 def remote() -> bool:
     return bool(os.environ.get("DATABASE_URL"))
 
@@ -161,3 +175,27 @@ def set_start(day: date, amount: float, user_id: str = "me", url: str | None = N
     with _engine(url).begin() as con:  # delete + insert: stesso codice per SQLite e Postgres
         con.execute(accounts.delete().where(accounts.c.user_id == user_id))
         con.execute(accounts.insert().values(user_id=user_id, date=day, amount=round(amount, 2)))
+
+
+# --- account (versione web) ------------------------------------------------------------------------
+def add_user(email: str, password: str, data_id: str, url: str | None = None) -> int | None:
+    """Crea l'account e ne restituisce l'id; None se l'email (o data_id) è già usata."""
+    try:
+        with _engine(url).begin() as con:
+            return con.execute(users.insert().values(email=email, password=password, data_id=data_id)).inserted_primary_key[0]
+    except sa.exc.IntegrityError:
+        return None
+
+
+def find_user(email: str | None = None, user_id: int | None = None, url: str | None = None):
+    """Riga dell'account (id, email, password, data_id, failed, locked_until) per email o per id, o None."""
+    where = users.c.email == email if email is not None else users.c.id == user_id
+    with _engine(url).connect() as con:
+        return con.execute(sa.select(users).where(where)).first()
+
+
+def login_attempt(user_id: int, ok: bool, locked_until: float = 0.0, url: str | None = None) -> None:
+    """Login riuscito: azzera i tentativi. Sbagliato: +1, e locked_until se passato."""
+    values = {"failed": 0, "locked_until": 0.0} if ok else {"failed": users.c.failed + 1, "locked_until": locked_until}
+    with _engine(url).begin() as con:
+        con.execute(users.update().where(users.c.id == user_id).values(values))

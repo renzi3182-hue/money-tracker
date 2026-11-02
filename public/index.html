@@ -176,7 +176,10 @@ dialog form { display: grid; gap: 12px; }
 .err { color: var(--r-stag); font-size: 14px; min-height: 1em; }
 #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--raised); border: 1px solid var(--line);
   border-radius: 12px; padding: 10px 16px; box-shadow: var(--shadow); z-index: 10; transition: opacity .3s; }
-#login { max-width: 360px; margin: 18vh auto 0; display: grid; gap: 12px; }
+#login { max-width: 360px; margin: 14vh auto 0; display: grid; gap: 12px; }
+#login .seg { display: flex; } #login .seg button { flex: 1; }
+#login .remember { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--fg); }
+#login .hint { color: var(--muted); font-size: 13px; margin: 0; }
 /* Telefono: metriche su una riga (nome a sinistra, valore a destra) invece di card alte impilate */
 @media (max-width: 640px) {
   .metrics { gap: 8px; }
@@ -202,7 +205,11 @@ dialog form { display: grid; gap: 12px; }
 
   <form id="login" class="hidden">
     <h1>Le tue finanze</h1>
-    <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+    <div class="seg" id="login-mode"></div>
+    <label>Email<input type="email" name="email" autocomplete="email" required></label>
+    <label>Password<input type="password" name="password" autocomplete="current-password" minlength="8" required></label>
+    <p class="hint hidden">Almeno 8 caratteri. Vedrai solo le tue spese e i tuoi investimenti.</p>
+    <label class="remember"><input type="checkbox" name="remember" checked> Ricordami su questo dispositivo</label>
     <button class="primary">Entra</button>
     <div class="err"></div>
   </form>
@@ -286,7 +293,7 @@ async function call(path, method = "GET", body) {
   const res = await fetch(path, {method, headers: body ? {"Content-Type": "application/json"} : {},
                                  body: body ? JSON.stringify(body) : undefined, credentials: "same-origin"});
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && path !== "/api/login") { showLogin(); throw new Error("login"); }
+  if (res.status === 401 && !["/api/login", "/api/register"].includes(path)) { showLogin(); throw new Error("login"); }
   if (!res.ok) throw new Error(data.error || "Errore del server, riprova.");
   return data;
 }
@@ -853,18 +860,31 @@ function interestTab(body) {
 }
 
 // --- accesso -------------------------------------------------------------------------------------
+// Accedi o Registrati: stesso modulo, cambiano testo del bottone, suggerimento e indirizzo dell'API
+let signup = false;
+function loginMode(v) {
+  signup = v === "Registrati";
+  const f = $("#login");
+  $("button.primary", f).textContent = signup ? "Crea account" : "Entra";
+  $(".hint", f).classList.toggle("hidden", !signup);
+  f.password.autocomplete = signup ? "new-password" : "current-password";
+  $(".err", f).textContent = "";
+}
+seg($("#login-mode"), ["Accedi", "Registrati"], "Accedi", loginMode);
+
 function showLogin() {
   $("#loading").classList.add("hidden"); $("#app").classList.add("hidden"); $("#fab").classList.add("hidden");
-  $("#login").classList.remove("hidden");
+  $("#logout").classList.add("hidden"); $("#login").classList.remove("hidden");
 }
 
 $("#login").onsubmit = async e => {
   e.preventDefault();
-  const f = e.target, btn = $("button", f);
+  const f = e.target, btn = $("button.primary", f);
   btn.disabled = true; $(".err", f).textContent = "";
   try {
-    await call("/api/login", "POST", {password: f.password.value});
-    f.reset(); f.classList.add("hidden"); $("#logout").classList.remove("hidden"); await load();
+    await call(signup ? "/api/register" : "/api/login", "POST",
+               {email: f.email.value, password: f.password.value, remember: f.remember.checked});
+    f.password.value = ""; f.classList.add("hidden"); $("#logout").classList.remove("hidden"); await load();
   } catch (err) { $(".err", f).textContent = err.message; }
   btn.disabled = false;
 };
@@ -880,7 +900,7 @@ scheme.addEventListener("change", applyScheme);
   applyScheme();
   try {
     const s = await call("/api/session");
-    if (s.auth && !s.configured) { $("#loading span").textContent = "Login non configurato: su Vercel servono SESSION_SECRET e una APP_PASSWORD di almeno 16 caratteri."; return; }
+    if (s.auth && !s.configured) { $("#loading span").textContent = "Login non configurato: su Vercel serve SESSION_SECRET di almeno 32 caratteri."; return; }
     if (!s.logged_in) { showLogin(); return; }
     if (s.auth) $("#logout").classList.remove("hidden");
     await load();

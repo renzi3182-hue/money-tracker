@@ -12,29 +12,81 @@ TODAY = date.today().isoformat()
 def client(tmp_path, monkeypatch):
     # DATABASE_URL presente = login obbligatorio, come online; qui punta a un SQLite temporaneo
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'm.db'}")
-    monkeypatch.setenv("APP_PASSWORD", "segreta-lunga-di-prova")
     monkeypatch.setenv("SESSION_SECRET", "x" * 32)
+    monkeypatch.setenv("OWNER_EMAIL", "Io@Esempio.it")
+    monkeypatch.setenv("APP_PASSWORD", "vecchia-password-unica")
+    monkeypatch.setattr("api.index.HASH_ROUNDS", 1000)  # test veloci
     return TestClient(app)
 
 
-def login(client):
-    assert client.post("/api/login", json={"password": "segreta-lunga-di-prova"}).status_code == 200
+def login(client, email="anna@esempio.it", password="password-anna", remember=True):
+    res = client.post("/api/register", json={"email": email, "password": password, "remember": remember})
+    if res.status_code == 409:
+        res = client.post("/api/login", json={"email": email, "password": password, "remember": remember})
+    assert res.status_code == 200, res.json()
 
 
-def test_login_required_and_fail_closed(client, monkeypatch):
+def test_register_login_and_fail_closed(client, monkeypatch):
     assert client.get("/api/dashboard").status_code == 401
-    assert client.post("/api/login", json={"password": "no"}).status_code == 401
+    for bad in ({"email": "non-email", "password": "abbastanza"}, {"email": "a@b.it", "password": "corta"}, {}):
+        assert client.post("/api/register", json=bad).status_code == 400, bad
+    login(client)
+    assert client.get("/api/session").json() == {"auth": True, "configured": True, "logged_in": True,
+                                                 "email": "anna@esempio.it"}
+    assert client.post("/api/register", json={"email": "ANNA@esempio.it", "password": "altra-pass"}).status_code == 409
+    client.post("/api/logout")
+    assert client.get("/api/dashboard").status_code == 401
+    assert client.post("/api/login", json={"email": "anna@esempio.it", "password": "sbagliata"}).status_code == 401
+    assert client.post("/api/login", json={"email": "nessuno@esempio.it", "password": "x" * 8}).status_code == 401
     login(client)
     assert client.get("/api/dashboard").status_code == 200
-    client.cookies.set("mt_session", "9999999999.falsa")
+    client.cookies.set("mt_session", "1.9999999999.falsa")
     assert client.get("/api/dashboard").status_code == 401
     login(client)
-    monkeypatch.setenv("APP_PASSWORD", "nuova-password-lunga")  # cambiare password chiude le sessioni aperte
+    monkeypatch.setenv("SESSION_SECRET", "y" * 32)  # cambiare il segreto chiude le sessioni aperte
     assert client.get("/api/dashboard").status_code == 401
-    monkeypatch.setenv("APP_PASSWORD", "corta")  # sotto i 16 caratteri il login resta chiuso
-    assert client.post("/api/login", json={"password": "corta"}).status_code == 503
-    monkeypatch.delenv("APP_PASSWORD")  # DB online senza password: nessuno entra
-    assert client.get("/api/dashboard").status_code == 401
+    monkeypatch.setenv("SESSION_SECRET", "corto")  # segreto troppo corto: nessuno entra
+    assert client.post("/api/login", json={"email": "anna@esempio.it", "password": "password-anna"}).status_code == 503
+
+
+def test_remember_me_sets_persistent_cookie(client):
+    res = client.post("/api/register", json={"email": "a@esempio.it", "password": "password-a", "remember": True})
+    assert "Max-Age=7776000" in res.headers["set-cookie"]
+    res = client.post("/api/login", json={"email": "a@esempio.it", "password": "password-a", "remember": False})
+    assert "Max-Age" not in res.headers["set-cookie"]  # cookie di sessione: sparisce chiudendo il browser
+    assert client.get("/api/dashboard").status_code == 200
+
+
+def test_lockout_after_failed_attempts(client):
+    login(client)
+    client.post("/api/logout")
+    for _ in range(5):
+        assert client.post("/api/login", json={"email": "anna@esempio.it", "password": "sbagliata"}).status_code == 401
+    # anche con la password giusta: chiuso per qualche minuto
+    assert client.post("/api/login", json={"email": "anna@esempio.it", "password": "password-anna"}).status_code == 429
+
+
+def test_each_user_sees_only_own_data(client):
+    movement = {"date": TODAY, "kind": "spesa", "amount": 10, "category": "Casa"}
+    login(client)
+    assert client.post("/api/movements", json=movement).status_code == 200
+    mine = client.get("/api/dashboard").json()["movements"]
+    client.post("/api/logout")
+    login(client, "bruno@esempio.it", "password-bruno")
+    assert client.get("/api/dashboard").json()["movements"] == []
+    client.request("DELETE", "/api/movements", json={"ids": [mine[0]["id"]]})  # id di un altro: non cancella nulla
+    client.post("/api/logout")
+    login(client)
+    assert len(client.get("/api/dashboard").json()["movements"]) == 1
+
+
+def test_owner_inherits_existing_data(client):
+    from src import db
+    db.add(date.today(), "spesa", 5, "Casa", "", user_id="me")  # dati di prima del login a account
+    owner = {"email": "io@esempio.it", "password": "un-altra-password"}
+    assert client.post("/api/register", json=owner).status_code == 403  # serve la vecchia APP_PASSWORD
+    assert client.post("/api/register", json=owner | {"password": "vecchia-password-unica"}).status_code == 200
+    assert len(client.get("/api/dashboard").json()["movements"]) == 1
 
 
 def test_movements_roundtrip_and_validation(client):

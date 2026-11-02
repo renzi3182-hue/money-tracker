@@ -2,13 +2,16 @@
 login e trasformazione in JSON. In locale serve anche public/ (su Vercel la serve la CDN):
     .venv/bin/uvicorn api.index:app --app-dir code/money-tracker --port 8520
 
-Variabili d'ambiente: DATABASE_URL (Neon), APP_PASSWORD e SESSION_SECRET (login), USER_ID (default "me", lo user_id dei
-dati già su Neon). Senza DATABASE_URL: SQLite locale e nessun login."""
+Variabili d'ambiente: DATABASE_URL (Neon), SESSION_SECRET (firma dei cookie, almeno 32 caratteri), OWNER_EMAIL e
+APP_PASSWORD (il proprietario si registra con la vecchia password unica e ritrova i dati con user_id USER_ID, default
+"me"). Ognuno si registra con email e password e vede solo i suoi dati. Senza DATABASE_URL: SQLite locale e nessun login."""
 import asyncio
 import hashlib
 import hmac
 import math
 import os
+import re
+import secrets
 import sys
 import time
 from datetime import date, timedelta
@@ -26,9 +29,12 @@ sys.path.insert(0, str(ROOT))
 from src import db, stats  # noqa: E402
 
 COOKIE = "mt_session"
-MIN_PASSWORD = 16  # senza limite ai tentativi la difesa è la lunghezza: sotto i 16 caratteri il login resta chiuso
-SESSION_DAYS = 90
-USER = os.environ.get("USER_ID", "me")
+MIN_PASSWORD = 8
+MAX_FAILED, LOCK_MINUTES = 5, 15  # dopo 5 password sbagliate di fila l'account resta chiuso 15 minuti
+SESSION_DAYS = 90  # con "Ricordami"
+HASH_ROUNDS = 300_000  # PBKDF2: circa 0,2 s per login, rende lento provare password a tappeto se il DB uscisse
+EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+USER = os.environ.get("USER_ID", "me")  # user_id dei dati del proprietario (OWNER_EMAIL), e di tutti in locale
 
 
 class Invalid(Exception):
@@ -40,14 +46,27 @@ def _json(data, status_code: int = 200) -> JSONResponse:
 
 
 # --- login -----------------------------------------------------------------------------------------
-# Password unica nelle variabili d'ambiente; il cookie è "scadenza.firma" con HMAC. La chiave dipende anche dalla
-# password: cambiandola su Vercel tutte le sessioni aperte decadono.
-def _key() -> bytes:
-    return hmac.new(os.environ["SESSION_SECRET"].encode(), os.environ["APP_PASSWORD"].encode(), hashlib.sha256).digest()
+# Account con email e password (tabella users su Neon). Il cookie è "id.scadenza.firma": HMAC con SESSION_SECRET
+# anche sull'hash della password, così cambiarla chiude le sessioni aperte. "Ricordami" = cookie di 90 giorni;
+# senza, cookie di sessione (sparisce chiudendo il browser) e comunque scaduto dopo 12 ore.
+def _hash(password: str, salt: bytes | None = None) -> str:
+    salt = salt or secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, HASH_ROUNDS)
+    return f"pbkdf2_sha256${HASH_ROUNDS}${salt.hex()}${digest.hex()}"
 
 
-def _sign(expires: int) -> str:
-    return f"{expires}.{hmac.new(_key(), str(expires).encode(), hashlib.sha256).hexdigest()}"
+def _check(password: str, stored: str) -> bool:
+    _, rounds, salt, digest = stored.split("$")
+    test = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), int(rounds))
+    return hmac.compare_digest(test.hex(), digest)
+
+
+DUMMY_HASH = f"pbkdf2_sha256${HASH_ROUNDS}${'00' * 16}${'00' * 32}"  # per le email sconosciute
+
+
+def _sign(user_id: int, expires: int, password_hash: str) -> str:
+    msg = f"{user_id}.{expires}.{password_hash}".encode()
+    return hmac.new(os.environ["SESSION_SECRET"].encode(), msg, hashlib.sha256).hexdigest()
 
 
 def _auth_required() -> bool:
@@ -55,26 +74,36 @@ def _auth_required() -> bool:
 
 
 def _auth_configured() -> bool:
-    return len(os.environ.get("APP_PASSWORD", "")) >= MIN_PASSWORD and bool(os.environ.get("SESSION_SECRET"))
+    return len(os.environ.get("SESSION_SECRET", "")) >= 32
 
 
-def _logged_in(request: Request) -> bool:
+def _user(request: Request):
+    """Riga dell'account dal cookie, o None. In locale senza DB online: nessun login, dati di USER."""
+    uid, _, rest = (request.cookies.get(COOKIE) or "").partition(".")
+    expires, _, sig = rest.partition(".")
+    if not (_auth_configured() and uid.isdigit() and expires.isdigit() and int(expires) > time.time()):
+        return None
+    row = db.find_user(user_id=int(uid))
+    return row if row and hmac.compare_digest(sig, _sign(row.id, int(expires), row.password)) else None
+
+
+def _data_id(request: Request) -> str | None:
     if not _auth_required():
-        return True
-    if not _auth_configured():  # fail-closed: DB online senza password = nessuno entra
-        return False
-    expires, _, _sig = (request.cookies.get(COOKIE) or "").partition(".")
-    return expires.isdigit() and int(expires) > time.time() and hmac.compare_digest(request.cookies[COOKIE], _sign(int(expires)))
+        return USER
+    row = _user(request)  # fail-closed: senza SESSION_SECRET nessun cookie è valido
+    return row.data_id if row else None
 
 
 def api(handler):
-    """Controlla il login, converte gli errori di validazione in 400 e il risultato in JSON."""
+    """Controlla il login, passa all'handler lo user_id dei dati, converte gli errori di validazione in 400 e il
+    risultato in JSON."""
     async def wrapped(request: Request):
-        if not _logged_in(request):
+        user = _data_id(request)
+        if user is None:
             return _json({"error": "login"}, status_code=401)
         try:
             body = await request.json() if request.method in ("POST", "PUT", "PATCH", "DELETE") else {}
-            return _json(_clean(handler(body if isinstance(body, dict) else {})))
+            return _json(_clean(handler(body if isinstance(body, dict) else {}, user)))
         except Invalid as e:
             return _json({"error": str(e)}, status_code=400)
         except ValueError:
@@ -82,25 +111,80 @@ def api(handler):
     return wrapped
 
 
+def _logged(row, remember: bool) -> JSONResponse:
+    days = SESSION_DAYS if remember else 0.5
+    expires = int(time.time() + days * 86400)
+    res = _json({"ok": True, "email": row.email})
+    res.set_cookie(COOKIE, f"{row.id}.{expires}.{_sign(row.id, expires, row.password)}",
+                   max_age=SESSION_DAYS * 86400 if remember else None, httponly=True,
+                   secure=bool(os.environ.get("VERCEL")), samesite="strict")
+    return res
+
+
+async def _credentials(request: Request) -> tuple[str, str, bool]:
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    email, password = body.get("email"), body.get("password")
+    if not isinstance(email, str) or not isinstance(password, str):
+        raise Invalid("Scrivi email e password.")
+    return email.strip().lower(), password, body.get("remember") is True
+
+
 async def session(request: Request):
-    return _json({"auth": _auth_required(), "logged_in": _logged_in(request), "configured": _auth_configured()})
+    row = _user(request) if _auth_required() else None
+    return _json({"auth": _auth_required(), "configured": _auth_configured(),
+                  "logged_in": not _auth_required() or row is not None, "email": row.email if row else None})
+
+
+async def register(request: Request):
+    if not (_auth_required() and _auth_configured()):
+        return _json({"error": "Login non configurato."}, status_code=503)
+    try:
+        email, password, remember = await _credentials(request)
+    except Invalid as e:
+        return _json({"error": str(e)}, status_code=400)
+    if len(email) > 200 or not EMAIL.fullmatch(email):
+        return _json({"error": "Email non valida."}, status_code=400)
+    if not MIN_PASSWORD <= len(password) <= 200:
+        return _json({"error": f"La password deve avere almeno {MIN_PASSWORD} caratteri."}, status_code=400)
+    data_id = email
+    if email == os.environ.get("OWNER_EMAIL", "").strip().lower():
+        # Il proprietario eredita i dati già su Neon (user_id USER): solo chi conosce la vecchia APP_PASSWORD
+        owner_password = os.environ.get("APP_PASSWORD", "")
+        if not owner_password or not hmac.compare_digest(password.encode(), owner_password.encode()):
+            await asyncio.sleep(1)
+            return _json({"error": "Per questa email usa la password dell'app che avevi già."}, status_code=403)
+        data_id = USER
+    if db.add_user(email, _hash(password), data_id) is None:
+        return _json({"error": "Esiste già un account con questa email: accedi."}, status_code=409)
+    return _logged(db.find_user(email=email), remember)
 
 
 async def login(request: Request):
     if not (_auth_required() and _auth_configured()):
         return _json({"error": "Login non configurato."}, status_code=503)
     try:
-        password = str((await request.json()).get("password", ""))
-    except ValueError:
-        password = ""
-    if not hmac.compare_digest(password.encode(), os.environ["APP_PASSWORD"].encode()):
-        await asyncio.sleep(1)  # shortcut: rallenta i tentativi ma non li blocca; per un vero limite serve uno store (Vercel KV o tabella su Neon)
-        return _json({"error": "Password sbagliata."}, status_code=401)
-    expires = int(time.time()) + SESSION_DAYS * 86400
-    res = _json({"ok": True})
-    res.set_cookie(COOKIE, _sign(expires), max_age=SESSION_DAYS * 86400, httponly=True,
-                   secure=bool(os.environ.get("VERCEL")), samesite="strict")
-    return res
+        email, password, remember = await _credentials(request)
+    except Invalid as e:
+        return _json({"error": str(e)}, status_code=400)
+    row = db.find_user(email=email)
+    if row and row.locked_until > time.time():
+        minutes = math.ceil((row.locked_until - time.time()) / 60)
+        return _json({"error": f"Troppi tentativi sbagliati: riprova tra {minutes} minuti."}, status_code=429)
+    # Email sconosciuta: l'hash si calcola lo stesso, così il tempo di risposta non dice se l'account esiste
+    ok = _check(password, row.password if row else DUMMY_HASH) and row is not None
+    if not ok:
+        if row:
+            locked = time.time() + LOCK_MINUTES * 60 if row.failed + 1 >= MAX_FAILED else 0.0
+            db.login_attempt(row.id, False, locked)
+        await asyncio.sleep(1)
+        return _json({"error": "Email o password sbagliate."}, status_code=401)
+    db.login_attempt(row.id, True)
+    return _logged(row, remember)
 
 
 async def logout(request: Request):
@@ -181,21 +265,21 @@ def _period(df: pd.DataFrame, today: date, freq: str) -> dict:
     return out
 
 
-def _wealth(df: pd.DataFrame) -> dict:
+def _wealth(df: pd.DataFrame, user: str) -> dict:
     """Liquidità (contanti e conto insieme) e investimenti (valore ai prezzi attuali) separati: il totale è solo la loro somma."""
-    ops, ins = db.load_investments(USER)
+    ops, ins = db.load_investments(user)
     pos = stats.ledger(ops, ins)[0]
-    start = db.load_start(USER)
+    start = db.load_start(user)
     return {"start": {"date": start[0], "amount": start[1]} if start else None,
             "cash": stats.cash(start, df, ops), "invested": pos["value"].sum(), "gain": pos["gain"].sum(),
             "positions": len(pos)}
 
 
 @api
-def dashboard(_):
-    df, today = db.load(USER), date.today()
+def dashboard(_, user):
+    df, today = db.load(user), date.today()
     return {
-        "wealth": _wealth(df),
+        "wealth": _wealth(df, user),
         "today": today,
         "options": {"kinds": db.KINDS, "expense": db.EXPENSE_CATEGORIES, "income": db.INCOME_CATEGORIES,
                     "asset_kinds": db.ASSET_KINDS, "sides": db.SIDES,
@@ -207,35 +291,35 @@ def dashboard(_):
 
 
 @api
-def add_movement(body):
+def add_movement(body, user):
     kind = _choice(body, "kind", db.KINDS)
     category = _choice(body, "category", db.EXPENSE_CATEGORIES if kind == "spesa" else db.INCOME_CATEGORIES)
     amount = _num(body, "amount", strict=True)
-    db.add(_day(body), kind, amount, category, "", _text(body, "note", 200), user_id=USER)
+    db.add(_day(body), kind, amount, category, "", _text(body, "note", 200), user_id=user)
     return {"ok": True}
 
 
 @api
-def set_start(body):
-    db.set_start(_day(body), _num(body, "amount", low=-1e9), user_id=USER)
+def set_start(body, user):
+    db.set_start(_day(body), _num(body, "amount", low=-1e9), user_id=user)
     return {"ok": True}
 
 
 @api
-def delete_movements(body):
-    db.delete(_ids(body), user_id=USER)
+def delete_movements(body, user):
+    db.delete(_ids(body), user_id=user)
     return {"ok": True}
 
 
 # --- investimenti ----------------------------------------------------------------------------------
 @api
-def investments(_):
-    ops, ins = db.load_investments(USER)
+def investments(_, user):
+    ops, ins = db.load_investments(user)
     pos, sales = stats.ledger(ops, ins)
     today = date.today()
     bag, taxed = stats.tax_bag(sales, today.year)
     expiring = bag.loc[bag["expires"] == today.year, "residual"].sum()
-    saving, expense = stats.fire_defaults(db.load(USER), today)
+    saving, expense = stats.fire_defaults(db.load(user), today)
     return {
         "operations": ops, "instruments": ins, "positions": pos,
         "bag": bag, "sales": taxed.sort_values("date", ascending=False),
@@ -247,12 +331,12 @@ def investments(_):
 
 
 @api
-def add_operation(body):
+def add_operation(body, user):
     side = _choice(body, "side", db.SIDES)
     name = _text(body, "name", 60)
     qty, price = _num(body, "quantity", strict=True), _num(body, "price", strict=True)
     fees = _num(body, "fees", default=0)
-    ops, ins = db.load_investments(USER)
+    ops, ins = db.load_investments(user)
     known = name in set(ins["name"])
     kind = None
     if side == "acquisto" and not known:
@@ -263,18 +347,18 @@ def add_operation(body):
         held = stats.ledger(ops, ins)[0].set_index("name")["quantity"].get(name, 0.0)
         if qty > held + 1e-9:
             raise Invalid(f"Ne hai solo {held:g} quote.")
-    db.add_operation(_day(body), name, side, qty, price, fees, kind, user_id=USER)
+    db.add_operation(_day(body), name, side, qty, price, fees, kind, user_id=user)
     return {"ok": True}
 
 
 @api
-def delete_operations(body):
-    db.delete_operations(_ids(body), user_id=USER)
+def delete_operations(body, user):
+    db.delete_operations(_ids(body), user_id=user)
     return {"ok": True}
 
 
 @api
-def update_instruments(body):
+def update_instruments(body, user):
     rows = body.get("rows")
     if not isinstance(rows, list) or not rows:
         raise Invalid("Niente da salvare.")
@@ -291,12 +375,12 @@ def update_instruments(body):
     for cols in ({"name", "price"}, {"name", "target"}):  # update_instruments vuole le stesse colonne su ogni riga
         part = [{k: r[k] for k in cols} for r in clean if cols <= r.keys()]
         if part:
-            db.update_instruments(pd.DataFrame(part), user_id=USER)
+            db.update_instruments(pd.DataFrame(part), user_id=user)
     return {"ok": True}
 
 
 @api
-def rebalance(body):
+def rebalance(body, user):
     cash = _num(body, "cash")
     rows = body.get("rows")
     if not isinstance(rows, list) or not rows:
@@ -309,7 +393,7 @@ def rebalance(body):
 
 
 @api
-def fire(body):
+def fire(body, user):
     capital, saving = _num(body, "capital"), _num(body, "saving")
     expense = _num(body, "expense", strict=True)
     mu, sigma = stats.FIRE_PROFILES[_choice(body, "profile", list(stats.FIRE_PROFILES))]
@@ -327,7 +411,7 @@ def fire(body):
 
 
 @api
-def interest(body):
+def interest(body, user):
     principal, monthly = _num(body, "principal"), _num(body, "monthly")
     rate, inflation = _num(body, "rate", high=30), _num(body, "inflation", high=20)
     years = int(_num(body, "years", low=1, high=60))
@@ -339,7 +423,7 @@ def interest(body):
 
 routes = [
     Route("/api/session", session), Route("/api/login", login, methods=["POST"]),
-    Route("/api/logout", logout, methods=["POST"]),
+    Route("/api/register", register, methods=["POST"]), Route("/api/logout", logout, methods=["POST"]),
     Route("/api/dashboard", dashboard),
     Route("/api/movements", add_movement, methods=["POST"]), Route("/api/movements", delete_movements, methods=["DELETE"]),
     Route("/api/start", set_start, methods=["PUT"]),
