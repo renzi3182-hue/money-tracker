@@ -39,7 +39,7 @@ def test_login_required_and_fail_closed(client, monkeypatch):
 
 def test_movements_roundtrip_and_validation(client):
     login(client)
-    ok = {"date": TODAY, "kind": "spesa", "amount": 12.5, "category": "Casa", "method": "Carta", "note": " pane "}
+    ok = {"date": TODAY, "kind": "spesa", "amount": 12.5, "category": "Casa", "note": " pane "}
     assert client.post("/api/movements", json=ok).status_code == 200
     for bad in ({"amount": 0}, {"amount": "12"}, {"category": "Stipendio"}, {"kind": "regalo"},
                 {"date": (date.today() + timedelta(days=1)).isoformat()}):

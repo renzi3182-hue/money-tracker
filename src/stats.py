@@ -233,7 +233,7 @@ def rebalance(values: pd.Series, targets: pd.Series, cash: float) -> pd.Series:
 
 
 def cash(start: tuple[date, float] | None, df: pd.DataFrame, ops: pd.DataFrame) -> float | None:
-    """Liquidità oggi: saldo del conto a fine `start[0]` più entrate, meno spese, meno acquisti di investimenti (con
+    """Liquidità oggi: saldo totale (contanti e conto) a fine `start[0]` più entrate, meno spese, meno acquisti di investimenti (con
     commissioni), più incassi delle vendite, tutti dal giorno dopo. Gli acquisti spostano soldi dalla liquidità agli
     investimenti, così le due cifre non si sommano due volte. None senza saldo di partenza."""
     if start is None:

@@ -89,7 +89,6 @@ label > .seg { display: flex; width: fit-content; }
 .good { color: var(--r-gold) !important; } .bad { color: var(--r-stag) !important; }
 .card { background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line);
   border-radius: 18px; padding: 16px; transition: transform .25s var(--ease); }
-.charts { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .chart { position: relative; height: 280px; }
 .note { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px;
   padding: 10px 14px; margin: 10px 0; }
@@ -125,7 +124,7 @@ label > .seg { display: flex; width: fit-content; }
 .legend i { width: 12px; height: 12px; border-radius: 3px; flex: none; }
 .legend i.dash { height: 0; border-radius: 0; border-top: 2px dashed currentColor; }
 .legend i.ln { height: 3px; border-radius: 2px; }
-/* Classifica per categoria e metodo: barre orizzontali in HTML, nome e cifra sulla stessa riga */
+/* Classifica per categoria: barre orizzontali in HTML, nome e cifra sulla stessa riga */
 .rank { display: grid; gap: 10px; }
 .rank .r { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 14px; }
 .rank .r span:last-child { font-family: "DM Mono", monospace; text-align: right; }
@@ -227,7 +226,6 @@ dialog form { display: grid; gap: 12px; }
     <label>Data<input type="date" name="date" required></label>
     <label>Importo (€)<input type="number" name="amount" inputmode="decimal" step="0.01" min="0.01" required></label>
     <label>Categoria<select name="category"></select></label>
-    <label><span data-label="method">Metodo di pagamento</span><select name="method"></select></label>
     <label>Nota<input name="note" maxlength="200" placeholder="facoltativa"></label>
     <div class="err"></div>
     <div class="actions"><button class="primary" value="save">Salva</button><button value="cancel" formnovalidate>Annulla</button></div>
@@ -252,9 +250,9 @@ dialog form { display: grid; gap: 12px; }
 </dialog>
 
 <dialog id="dlg-start">
-  <h2>Saldo del conto</h2>
+  <h2>Il tuo saldo</h2>
   <form method="dialog">
-    <p class="small muted" style="margin:0">Quanto c'era sul conto (e in contanti) alla fine di un giorno, come lo leggi in banca.
+    <p class="small muted" style="margin:0">Quanti soldi avevi in tutto, contanti e conto insieme, alla fine di un giorno.
       Da lì la liquidità si aggiorna da sola con entrate, spese e operazioni di investimento registrate dopo.</p>
     <label>Alla fine del giorno<input type="date" name="date" required></label>
     <label>Saldo (€)<input type="number" name="amount" inputmode="decimal" step="0.01" required></label>
@@ -397,13 +395,13 @@ function renderWealth() {
   const video = el.querySelector("video");
   const gain = w.positions ? `${w.gain >= 0 ? "+" : "−"}${euro(Math.abs(w.gain))} rispetto al costo` : "Nessuno strumento in portafoglio";
   el.innerHTML = `
-    <div class="top"><span>Il tuo saldo</span>${hasCash ? `<button class="ghost small" data-start>Aggiorna saldo conto</button>` : ""}</div>
+    <div class="top"><span>Il tuo saldo</span>${hasCash ? `<button class="ghost small" data-start>Aggiorna saldo</button>` : ""}</div>
     <div class="pots">
       <div class="pot"><div class="k"><i style="background:var(--accent)"></i>Liquidità</div>
         ${hasCash ? `<div class="v num ${cash < 0 ? "bad" : ""}" data-cash></div>
-          <div class="d">Conto dal ${fmtDay(w.start.date)} (${euro(w.start.amount)}) + movimenti dopo</div>`
-        : `<div class="d">Inserisci una volta quanto hai sul conto: poi si aggiorna da sola.</div>
-          <button class="primary small" data-start>Imposta saldo conto</button>`}</div>
+          <div class="d">Saldo del ${fmtDay(w.start.date)} (${euro(w.start.amount)}) + movimenti dopo</div>`
+        : `<div class="d">Inserisci una volta quanti soldi hai, contanti e conto insieme: poi si aggiorna da sola.</div>
+          <button class="primary small" data-start>Imposta saldo</button>`}</div>
       <div class="pot"><div class="k"><i style="background:var(--c2)"></i>Investimenti</div>
         <div class="v num" data-inv></div>
         <div class="d ${w.positions ? (w.gain >= 0 ? "good" : "bad") : ""}">${gain}</div></div>
@@ -427,7 +425,7 @@ function openStart() {
   f.onsubmit = async e => {
     if (e.submitter?.value !== "save") return;
     e.preventDefault();
-    try { await call("/api/start", "PUT", {date: f.date.value, amount: Number(f.amount.value)}); dlg.close(); toast("Saldo del conto salvato"); await load(); }
+    try { await call("/api/start", "PUT", {date: f.date.value, amount: Number(f.amount.value)}); dlg.close(); toast("Saldo salvato"); await load(); }
     catch (err) { if (err.message !== "login") $(".err", f).textContent = err.message; }
   };
   dlg.showModal();
@@ -485,10 +483,7 @@ function periodTab(body, f) {
     <h3>Andamento delle spese <small>· ultimi ${hist.length} ${unit}</small></h3>
     <div class="card">${legend([{color: accent, label: nowName, value: euro(p.spent)}, {color: raised, label: pastName},
       {color: muted, label: "Media", value: euro(avg), kind: "dash"}])}${canvas(`hist-${f}`, 240)}</div>
-    <div class="charts">
-      <div><h3>Dove vanno i soldi <small>· per categoria, ${NAMES[f]}</small></h3><div class="card" data-cat></div></div>
-      <div><h3>Come paghi <small>· per metodo, ${NAMES[f]}</small></h3><div class="card" data-met></div></div>
-    </div>
+    <h3>Dove vanno i soldi <small>· per categoria, ${NAMES[f]}</small></h3><div class="card" data-cat></div>
     ${f === "M" ? `<h3>Questo mese contro il mese scorso <small>· spesa accumulata giorno per giorno</small></h3>
       <div class="card" data-cum>${canvas("cum", 240)}</div>` : ""}
     <h3>Movimenti di ${NAMES[f]}</h3><div data-list></div></div>`;
@@ -506,12 +501,9 @@ function periodTab(body, f) {
   // la palette ha 7 colori: oltre le prime 6 categorie si somma in "Altre"
   let cat = p.category;
   if (cat.length > 7) cat = [...cat.slice(0, 6), {category: "Altre", amount: cat.slice(6).reduce((t, c) => t + c.amount, 0)}];
-  for (const [sel, rows, key] of [["[data-cat]", cat, "category"], ["[data-met]", p.method, "method"]]) {
-    const box = $(sel, body);
-    box.innerHTML = rows.length ? rank(rows, key, key === "category" ? palette() : rows.map(() => css("--c2")))
-      : `<div class="small muted">Nessuna spesa nel periodo.</div>`;
-    growBars(box);
-  }
+  const box = $("[data-cat]", body);
+  box.innerHTML = cat.length ? rank(cat, "category", palette()) : `<div class="small muted">Nessuna spesa nel periodo.</div>`;
+  growBars(box);
 
   if (f === "M") {
     const series = name => p.cumulative.filter(c => c.serie === name);
@@ -543,7 +535,7 @@ function movementList(el, view, empty) {
     return `<div class="day"><b>${name} ${fmtDay(day)}</b><span class="small muted">${totals}</span></div>
       <div class="rows">${part.map(m => `<label class="row">
         <input type="checkbox" value="${m.id}">
-        <div class="main"><div>${esc(m.category)}</div><div>${esc(m.method)}${m.note ? " · " + esc(m.note) : ""}</div></div>
+        <div class="main"><div>${esc(m.category)}</div><div>${esc(m.note)}</div></div>
         <span class="amt ${m.kind === "entrata" ? "good" : ""}">${m.kind === "entrata" ? "+" : "−"}${euro(m.amount)}</span></label>`).join("")}</div>`;
   }).join("") + `<div class="actions"><button type="button" data-del disabled>Elimina 0 selezionati</button></div>`;
   deleteButton(el, "/api/movements", "movimenti eliminati");
@@ -584,11 +576,10 @@ function allTab(body) {
   const uniq = k => [...new Set(D.movements.map(m => m[k]))].sort();
   const opt = (name, all, values) => `<label>${name}<select data-f="${name}"><option value="">${all}</option>` +
     values.map(v => `<option>${esc(v)}</option>`).join("") + `</select></label>`;
-  body.innerHTML = `<div class="grid">${opt("Tipo", "Tutti", ["spesa", "entrata"])}${opt("Categoria", "Tutte", uniq("category"))}
-    ${opt("Metodo", "Tutti", uniq("method"))}</div><div data-list></div>`;
+  body.innerHTML = `<div class="grid">${opt("Tipo", "Tutti", ["spesa", "entrata"])}${opt("Categoria", "Tutte", uniq("category"))}</div><div data-list></div>`;
   const update = () => {
-    const [k, c, m] = ["Tipo", "Categoria", "Metodo"].map(n => $(`[data-f="${n}"]`, body).value);
-    const view = D.movements.filter(x => (!k || x.kind === k) && (!c || x.category === c) && (!m || x.method === m));
+    const [k, c] = ["Tipo", "Categoria"].map(n => $(`[data-f="${n}"]`, body).value);
+    const view = D.movements.filter(x => (!k || x.kind === k) && (!c || x.category === c));
     const list = $("[data-list]", body).cloneNode(false); // nuovo nodo: niente listener doppi sulla lista
     $("[data-list]", body).replaceWith(list);
     movementList(list, view, "Nessun movimento con questi filtri.");
@@ -603,18 +594,16 @@ function openMovement() {
   let kind = "spesa";
   const fill = () => {
     f.category.innerHTML = (kind === "spesa" ? o.expense : o.income).map(c => `<option>${esc(c)}</option>`).join("");
-    $("[data-label=method]", f).textContent = kind === "spesa" ? "Metodo di pagamento" : "Ricevuto con";
   };
   seg($("[data-name=kind]", f), o.kinds, kind, k => { kind = k; fill(); }, capital);
   f.reset(); f.date.value = f.date.max = isoToday();
-  f.method.innerHTML = o.methods.map(m => `<option>${esc(m)}</option>`).join("");
   fill(); $(".err", f).textContent = "";
   f.onsubmit = async e => {
     if (e.submitter?.value !== "save") return;
     e.preventDefault();
     const amount = Number(f.amount.value);
     try {
-      await call("/api/movements", "POST", {kind, date: f.date.value, amount, category: f.category.value, method: f.method.value, note: f.note.value});
+      await call("/api/movements", "POST", {kind, date: f.date.value, amount, category: f.category.value, note: f.note.value});
       dlg.close(); toast(`${capital(kind)} di ${euro(amount)} salvata`); await load();
     } catch (err) { if (err.message !== "login") $(".err", f).textContent = err.message; }
   };

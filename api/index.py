@@ -175,7 +175,6 @@ def _period(df: pd.DataFrame, today: date, freq: str) -> dict:
         "start": start, "spent": spent, "before": before, "income": stats.total(df, start, today, "entrata"),
         "history": stats.history(df, today, freq),
         "category": stats.breakdown(df, start, today, "category"),
-        "method": stats.breakdown(df, start, today, "method"),
     }
     if freq == "M":
         out["cumulative"] = stats.cumulative_month(df, today)
@@ -183,7 +182,7 @@ def _period(df: pd.DataFrame, today: date, freq: str) -> dict:
 
 
 def _wealth(df: pd.DataFrame) -> dict:
-    """Liquidità (conto) e investimenti (valore ai prezzi attuali) separati: il totale è solo la loro somma."""
+    """Liquidità (contanti e conto insieme) e investimenti (valore ai prezzi attuali) separati: il totale è solo la loro somma."""
     ops, ins = db.load_investments(USER)
     pos = stats.ledger(ops, ins)[0]
     start = db.load_start(USER)
@@ -199,7 +198,7 @@ def dashboard(_):
         "wealth": _wealth(df),
         "today": today,
         "options": {"kinds": db.KINDS, "expense": db.EXPENSE_CATEGORIES, "income": db.INCOME_CATEGORIES,
-                    "methods": db.METHODS, "asset_kinds": db.ASSET_KINDS, "sides": db.SIDES,
+                    "asset_kinds": db.ASSET_KINDS, "sides": db.SIDES,
                     "profiles": list(stats.FIRE_PROFILES), "compounding": list(stats.COMPOUNDING)},
         "movements": df,
         "periods": {f: _period(df, today, f) for f in ("M", "W", "D")} if not df.empty else None,
@@ -212,7 +211,7 @@ def add_movement(body):
     kind = _choice(body, "kind", db.KINDS)
     category = _choice(body, "category", db.EXPENSE_CATEGORIES if kind == "spesa" else db.INCOME_CATEGORIES)
     amount = _num(body, "amount", strict=True)
-    db.add(_day(body), kind, amount, category, _choice(body, "method", db.METHODS), _text(body, "note", 200), user_id=USER)
+    db.add(_day(body), kind, amount, category, "", _text(body, "note", 200), user_id=USER)
     return {"ok": True}
 
 

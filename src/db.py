@@ -150,7 +150,7 @@ def load_investments(user_id: str = "me", url: str | None = None) -> tuple[pd.Da
 
 
 def load_start(user_id: str = "me", url: str | None = None) -> tuple[date, float] | None:
-    """(data, saldo del conto a fine giornata) inseriti dall'utente, o None se mai inseriti."""
+    """(data, saldo totale, contanti e conto, a fine giornata) inseriti dall'utente, o None se mai inseriti."""
     a = accounts.c
     with _engine(url).connect() as con:
         row = con.execute(sa.select(a.date, a.amount).where(a.user_id == user_id)).first()
