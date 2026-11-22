@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Soft Investing</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0F1720">
@@ -39,12 +39,14 @@
   }
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 "Plus Jakarta Sans", system-ui, sans-serif; min-height: 100vh; }
+html { -webkit-text-size-adjust: 100%; touch-action: pan-x pan-y; overscroll-behavior-y: none; }
+html, body { width: 100%; overflow-x: clip; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 "Plus Jakarta Sans", system-ui, sans-serif; min-height: 100vh; min-height: 100dvh; }
 /* alone menta fisso dietro la pagina: la "luce" del Soft Glass */
 body::before { content: ""; position: fixed; inset: -20vh -10vw auto; height: 70vh; z-index: -1; pointer-events: none;
   background: radial-gradient(60% 60% at 70% 20%, var(--glow), transparent 70%), radial-gradient(40% 50% at 10% 0%, var(--glow), transparent 70%); }
-main { max-width: 1100px; margin: 0 auto; padding: 16px 16px 96px; }
+main { max-width: 1100px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+  max(96px, calc(80px + env(safe-area-inset-bottom))) max(16px, env(safe-area-inset-left)); }
 h1 { font-weight: 800; letter-spacing: -.03em; font-size: 28px; margin: 8px 0 4px; }
 h3 { font-size: 15px; font-weight: 600; margin: 24px 0 8px; }
 h3 small, .muted { color: var(--muted); font-weight: 400; }
@@ -63,7 +65,7 @@ button, .btn { font: inherit; border-radius: 12px; border: 1px solid var(--line)
 button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
 button:disabled { opacity: .45; cursor: default; }
 button.ghost { background: transparent; }
-input, select { font: inherit; color: var(--fg); background: var(--raised); border: 1px solid var(--line); border-radius: 12px;
+input, select { font: inherit; font-size: 16px; color: var(--fg); background: var(--raised); border: 1px solid var(--line); border-radius: 12px;
   padding: 9px 12px; width: 100%; min-width: 0; }
 input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
 input[type=range] { padding: 0; accent-color: var(--accent); background: none; border: 0; }
@@ -273,8 +275,7 @@ dialog form { display: grid; gap: 12px; }
 
 <div id="toast" class="hidden"></div>
 
-<script src="vendor/chart.umd.min.js"
-        integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
+
 <script src="snapshot.js"></script>
 <script>
 "use strict";
@@ -343,6 +344,7 @@ const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 // --- grafici -------------------------------------------------------------------------------------
 const charts = new Map();
 function chart(canvas, config) {
+  if (typeof Chart === "undefined") return; // I grafici non bloccano saldo e movimenti.
   charts.get(canvas)?.destroy();
   const muted = css("--muted"), line = css("--line");
   Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
@@ -996,8 +998,15 @@ if (saved) {
   } catch (_) { showLogin(); $("#login").classList.add("hidden"); $("#loading").classList.remove("hidden"); }
 }
 refreshDashboard();
+// La prima schermata e la richiesta dei dati precedono il caricamento dei grafici.
+const chartScript = document.createElement("script");
+chartScript.src = "vendor/chart.umd.min.js";
+chartScript.integrity = "sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt";
+chartScript.crossOrigin = "anonymous";
+chartScript.onload = () => { if (D && (section !== "Investimenti" || INV)) render(); };
+document.head.append(chartScript);
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+  navigator.serviceWorker.register("/sw.js", {updateViaCache: "none"}).catch(() => {});
 }
 </script>
 </body>

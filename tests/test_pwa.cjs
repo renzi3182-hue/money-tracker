@@ -17,6 +17,8 @@ test('snapshot: sessione, account, scadenza e uscita', () => {
   const {ctx, values, store} = snapshot();
   store.save({auth_required: true, wealth: {cash: 12}});
   assert.equal(store.read().data.wealth.cash, 12);
+  ctx.document.cookie = 'other=value;mt_snapshot=alice';
+  assert.equal(store.read().data.wealth.cash, 12);
   ctx.document.cookie = 'mt_snapshot=bob';
   assert.equal(store.read(), null);
   assert.equal(values.size, 0);
@@ -43,10 +45,12 @@ test('snapshot: storage negato non blocca l’app', () => {
 });
 test('service worker: cache solo pubblica, API e scritture escluse', async () => {
   const handlers = {}, cached = [];
-  const ctx = {URL, self: {location: {origin: 'https://app.test'}, clients: {claim() {}}, addEventListener: (name, cb) => handlers[name] = cb},
+  let activated = false;
+  const ctx = {URL, self: {location: {origin: 'https://app.test'}, skipWaiting() { activated = true; }, clients: {claim() {}}, addEventListener: (name, cb) => handlers[name] = cb},
     caches: {open: async () => ({addAll: files => cached.push(...files), match: async () => 'cached-shell'})}};
   vm.runInNewContext(fs.readFileSync(path.join(root, 'sw.js'), 'utf8'), ctx);
   await new Promise((resolve, reject) => handlers.install({waitUntil: p => p.then(resolve, reject)}));
+  assert(activated, 'il nuovo worker sostituisce il vecchio senza attendere tutte le finestre');
   assert(cached.includes('/index.html'));
   for (const file of cached) assert(fs.existsSync(path.join(root, file === '/' ? 'index.html' : file)));
   for (const [url, method] of [['/api/dashboard','GET'], ['/api/session','GET'], ['/api/login','POST'], ['/index.html','POST'], ['https://other.test/','GET']]) {

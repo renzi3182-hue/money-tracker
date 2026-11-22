@@ -1,7 +1,7 @@
 /* Copia privata della dashboard, associata alla sessione Ricordami del dispositivo. */
 const dashboardSnapshot = (() => {
   const key = 'mt-dashboard-v1';
-  const marker = () => document.cookie.split('; ').find(c => c.startsWith('mt_snapshot='))?.slice(12);
+  const marker = () => document.cookie.split(/;\s*/).find(c => c.startsWith('mt_snapshot='))?.slice(12);
   const clear = () => { try { localStorage.removeItem(key); } catch (_) {} };
   function read() {
     try {
