@@ -899,12 +899,21 @@ scheme.addEventListener("change", applyScheme);
 (async () => {
   applyScheme();
   try {
-    const s = await call("/api/session");
-    if (s.auth && !s.configured) { $("#loading span").textContent = "Login non configurato: su Vercel serve SESSION_SECRET di almeno 32 caratteri."; return; }
-    if (!s.logged_in) { showLogin(); return; }
-    if (s.auth) $("#logout").classList.remove("hidden");
+    // La dashboard verifica già il cookie: nessuna richiesta preliminare alla sessione.
     await load();
-  } catch (e) { if (e.message !== "login") $("#loading span").textContent = e.message; }
+    if (D.auth_required) $("#logout").classList.remove("hidden");
+  } catch (e) {
+    if (e.message !== "login") { $("#loading span").textContent = e.message; return; }
+    // Solo per accessi rifiutati, mantieni la diagnosi della configurazione del server.
+    try {
+      const s = await call("/api/session");
+      if (s.auth && !s.configured) {
+        $("#login").classList.add("hidden");
+        $("#loading").classList.remove("hidden");
+        $("#loading span").textContent = "Login non configurato: su Vercel serve SESSION_SECRET di almeno 32 caratteri.";
+      }
+    } catch (err) { $("#login .err").textContent = err.message; }
+  }
 })();
 </script>
 </body>

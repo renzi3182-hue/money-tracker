@@ -279,6 +279,7 @@ def _wealth(df: pd.DataFrame, user: str) -> dict:
 def dashboard(_, user):
     df, today = db.load(user), date.today()
     return {
+        "auth_required": _auth_required(),
         "wealth": _wealth(df, user),
         "today": today,
         "options": {"kinds": db.KINDS, "expense": db.EXPENSE_CATEGORIES, "income": db.INCOME_CATEGORIES,

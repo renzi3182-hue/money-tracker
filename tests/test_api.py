@@ -126,3 +126,14 @@ def test_investments_flow(client):
     rows = client.post("/api/interest", json={"principal": 1000, "monthly": 0, "rate": 10, "inflation": 0, "years": 2,
                                              "tax": 0, "compounding": "Annuale"}).json()["rows"]
     assert round(rows[-1]["Composto"], 2) == 1210
+
+
+def test_dashboard_bootstrap_auth_state(client):
+    # L'avvio può richiedere direttamente la dashboard, senza /api/session.
+    assert client.get("/api/dashboard").status_code == 401
+    login(client)
+    response = client.get("/api/dashboard")
+    assert response.json()["auth_required"] is True
+    assert response.headers["cache-control"] == "no-store"
+    client.post("/api/logout")
+    assert client.get("/api/dashboard").status_code == 401
