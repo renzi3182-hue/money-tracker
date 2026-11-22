@@ -103,12 +103,27 @@ def api(handler):
             return _json({"error": "login"}, status_code=401)
         try:
             body = await request.json() if request.method in ("POST", "PUT", "PATCH", "DELETE") else {}
-            return _json(_clean(handler(body if isinstance(body, dict) else {}, user)))
+            res = _json(_clean(handler(body if isinstance(body, dict) else {}, user)))
+            if handler.__name__ == "dashboard":
+                _snapshot_cookie(res, request.cookies.get(COOKIE, ""))
+            return res
         except Invalid as e:
             return _json({"error": str(e)}, status_code=400)
         except ValueError:
             return _json({"error": "Richiesta non valida."}, status_code=400)
     return wrapped
+
+
+def _snapshot_cookie(res, token):
+    """Impronta non utilizzabile per il login: lega la copia locale alla sessione persistente."""
+    parts = token.split(".")
+    if len(parts) != 3 or not parts[1].isdigit():
+        return
+    remaining = int(parts[1]) - int(time.time())
+    # Solo le sessioni Ricordami durano più di dodici ore.
+    if remaining > 12 * 3600:
+        res.set_cookie("mt_snapshot", hashlib.sha256(token.encode()).hexdigest(),
+                       max_age=remaining, secure=bool(os.environ.get("VERCEL")), samesite="strict")
 
 
 def _logged(row, remember: bool) -> JSONResponse:
@@ -118,6 +133,11 @@ def _logged(row, remember: bool) -> JSONResponse:
     res.set_cookie(COOKIE, f"{row.id}.{expires}.{_sign(row.id, expires, row.password)}",
                    max_age=SESSION_DAYS * 86400 if remember else None, httponly=True,
                    secure=bool(os.environ.get("VERCEL")), samesite="strict")
+    token = f"{row.id}.{expires}.{_sign(row.id, expires, row.password)}"
+    if remember:
+        _snapshot_cookie(res, token)
+    else:
+        res.delete_cookie("mt_snapshot")
     return res
 
 
@@ -190,6 +210,7 @@ async def login(request: Request):
 async def logout(request: Request):
     res = _json({"ok": True})
     res.delete_cookie(COOKIE)
+    res.delete_cookie("mt_snapshot")
     return res
 
 

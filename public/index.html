@@ -4,16 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Soft Investing</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0F1720">
 <link rel="icon" href="logo-mark.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="logo-mark.svg">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
-        integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
 <style>
+@font-face { font-family: 'DM Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('vendor/dm-mono-400.ttf') format('truetype'); }
+@font-face { font-family: 'DM Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('vendor/dm-mono-500.ttf') format('truetype'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url('vendor/plus-jakarta-sans-400.ttf') format('truetype'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url('vendor/plus-jakarta-sans-500.ttf') format('truetype'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url('vendor/plus-jakarta-sans-600.ttf') format('truetype'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 800; font-display: swap; src: url('vendor/plus-jakarta-sans-800.ttf') format('truetype'); }
 /* Token del design system Soft Glass: stessi valori di src/ui/theme.py */
 :root {
   --bg: #0F1720; --surface: #172330; --raised: #1E2D3D; --fg: #EAF2F5; --muted: #8FA6B2; --line: #25384A;
@@ -197,7 +199,7 @@ dialog form { display: grid; gap: 12px; }
 <body>
 <main>
   <header>
-    <video id="glass" autoplay muted loop playsinline poster="glass-icon.webp" aria-hidden="true"><source src="glass-icon.mp4" type="video/mp4"></video>
+    <video id="glass" autoplay muted loop playsinline poster="glass-icon.webp" aria-hidden="true"><source data-src="glass-icon.mp4" type="video/mp4"></video>
     <img id="logo" src="logo-mark.svg" alt="">
     <span class="brand">Soft Investing</span>
     <button id="logout" class="ghost small hidden">Esci</button>
@@ -214,9 +216,10 @@ dialog form { display: grid; gap: 12px; }
     <div class="err"></div>
   </form>
 
+  <p id="sync" class="muted hidden" role="status"><span></span> <button id="retry" class="ghost small">Riprova</button></p>
   <div id="app" class="hidden">
     <h1>Le tue finanze</h1>
-    <section class="wealth" id="wealth" aria-label="Saldo"><video autoplay muted loop playsinline poster="onde-saldo.jpg" aria-hidden="true"><source src="onde-saldo.mp4" type="video/mp4"></video></section>
+    <section class="wealth" id="wealth" aria-label="Saldo"><video autoplay muted loop playsinline poster="onde-saldo.jpg" aria-hidden="true"><source data-src="onde-saldo.mp4" type="video/mp4"></video></section>
     <div class="seg" id="section"></div>
     <div id="money"></div>
     <div id="invest" class="hidden"></div>
@@ -270,6 +273,9 @@ dialog form { display: grid; gap: 12px; }
 
 <div id="toast" class="hidden"></div>
 
+<script src="vendor/chart.umd.min.js"
+        integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
+<script src="snapshot.js"></script>
 <script>
 "use strict";
 // --- utilità -------------------------------------------------------------------------------------
@@ -290,6 +296,8 @@ if (calm()) document.querySelectorAll("video").forEach(v => v.pause()); // movim
 const isoToday = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 
 async function call(path, method = "GET", body) {
+  if (method !== "GET" && stale && path !== "/api/logout" && path !== "/api/login" && path !== "/api/register")
+    throw new Error("Attendi l’aggiornamento prima di modificare i dati.");
   const res = await fetch(path, {method, headers: body ? {"Content-Type": "application/json"} : {},
                                  body: body ? JSON.stringify(body) : undefined, credentials: "same-origin"});
   const data = await res.json().catch(() => ({}));
@@ -341,7 +349,7 @@ function chart(canvas, config) {
   Chart.defaults.color = muted;
   const axis = {grid: {color: line}, border: {color: line}, ticks: {font: {family: "'DM Mono', monospace"}}};
   config.options = Object.assign({responsive: true, maintainAspectRatio: false,
-    animation: calm() ? false : {duration: 700, easing: "easeOutQuart"},
+    animation: (calm() || stale) ? false : {duration: 700, easing: "easeOutQuart"},
     interaction: {mode: "index", intersect: false},
     plugins: {legend: {labels: {boxWidth: 12, boxHeight: 12, useBorderRadius: true, borderRadius: 3}}}}, config.options || {});
   if (config.type !== "doughnut") {
@@ -370,11 +378,39 @@ let D = null;   // /api/dashboard
 let INV = null; // /api/investments
 let section = "Spese ed entrate";
 const tabState = {money: 0, invest: 0};
+let stale = false, loadEpoch = 0, refreshing = false, activeSession = null;
+function startVideos() {
+  if (calm() || matchMedia("(prefers-color-scheme: light)").matches) return;
+  document.querySelectorAll("video source[data-src]").forEach(source => {
+    source.src = source.dataset.src;
+    delete source.dataset.src;
+    source.parentElement.load();
+    source.parentElement.play().catch(() => {});
+  });
+}
+function syncStatus(message = "") {
+  $("#sync").classList.toggle("hidden", !message);
+  $("#sync span").textContent = message;
+  $("#retry").disabled = refreshing;
+  $("#retry").classList.toggle("hidden", refreshing);
+  $("#app").inert = stale;
+  $("#fab").disabled = stale;
+}
 
 async function load() {
-  D = await call("/api/dashboard");
+  const epoch = loadEpoch;
+  const data = await call("/api/dashboard");
+  if (epoch !== loadEpoch) return;
+  D = data;
+  activeSession = dashboardSnapshot.session();
+  stale = false;
+  dashboardSnapshot.save(D);
+  syncStatus();
+  if (D.auth_required) $("#logout").classList.remove("hidden");
   if (section === "Investimenti") INV = await call("/api/investments");
+  if (epoch !== loadEpoch) return;
   render();
+  startVideos();
 }
 
 function render() {
@@ -398,7 +434,7 @@ function renderWealth() {
   const w = D.wealth, el = $("#wealth");
   const cash = w.cash, inv = w.invested, hasCash = cash != null;
   const key = `${cash}|${inv}`;
-  const animate = key !== wealthShown; wealthShown = key;
+  const animate = !stale && key !== wealthShown; wealthShown = key;
   const video = el.querySelector("video");
   const gain = w.positions ? `${w.gain >= 0 ? "+" : "−"}${euro(Math.abs(w.gain))} rispetto al costo` : "Nessuno strumento in portafoglio";
   el.innerHTML = `
@@ -872,7 +908,12 @@ function loginMode(v) {
 }
 seg($("#login-mode"), ["Accedi", "Registrati"], "Accedi", loginMode);
 
-function showLogin() {
+function showLogin(clearSnapshot = true) {
+  ++loadEpoch;
+  if (clearSnapshot) dashboardSnapshot.clear();
+  activeSession = null;
+  D = null; INV = null; stale = false;
+  syncStatus();
   $("#loading").classList.add("hidden"); $("#app").classList.add("hidden"); $("#fab").classList.add("hidden");
   $("#logout").classList.add("hidden"); $("#login").classList.remove("hidden");
 }
@@ -889,32 +930,75 @@ $("#login").onsubmit = async e => {
   btn.disabled = false;
 };
 
-$("#logout").onclick = async () => { await call("/api/logout", "POST"); location.reload(); };
+$("#logout").onclick = async () => {
+  showLogin();
+  document.cookie = "mt_snapshot=; Max-Age=0; Path=/; SameSite=Strict";
+  try { await call("/api/logout", "POST"); location.reload(); }
+  catch (_) { $("#login .err").textContent = "Collegati a internet per completare l’uscita."; }
+};
+window.addEventListener("storage", event => {
+  if (event.key === dashboardSnapshot.key && D &&
+      (event.newValue === null || dashboardSnapshot.session() !== activeSession)) showLogin(false);
+});
 
 // Logo e grafici seguono il tema chiaro/scuro del sistema
 const scheme = matchMedia("(prefers-color-scheme: light)");
-const applyScheme = () => { $("#logo").src = scheme.matches ? "logo-mark-light.svg" : "logo-mark.svg"; if (D) render(); };
+const applyScheme = () => { $("#logo").src = scheme.matches ? "logo-mark-light.svg" : "logo-mark.svg"; if (D) { render(); if (!stale) startVideos(); } };
 scheme.addEventListener("change", applyScheme);
 
-(async () => {
-  applyScheme();
+async function refreshDashboard() {
+  if (refreshing) return;
+  refreshing = true;
+  if (stale) syncStatus("Ultimi dati salvati · aggiornamento…");
   try {
-    // La dashboard verifica già il cookie: nessuna richiesta preliminare alla sessione.
     await load();
-    if (D.auth_required) $("#logout").classList.remove("hidden");
   } catch (e) {
-    if (e.message !== "login") { $("#loading span").textContent = e.message; return; }
-    // Solo per accessi rifiutati, mantieni la diagnosi della configurazione del server.
-    try {
-      const s = await call("/api/session");
-      if (s.auth && !s.configured) {
-        $("#login").classList.add("hidden");
-        $("#loading").classList.remove("hidden");
-        $("#loading span").textContent = "Login non configurato: su Vercel serve SESSION_SECRET di almeno 32 caratteri.";
-      }
-    } catch (err) { $("#login .err").textContent = err.message; }
+    if (e.message !== "login") {
+      if (D) syncStatus("Aggiornamento non riuscito · ultimi dati salvati sul dispositivo.");
+      else { $("#loading span").textContent = "Impossibile caricare i dati. Controlla la connessione."; syncStatus("Caricamento non riuscito."); }
+    } else {
+      try {
+        const s = await call("/api/session");
+        if (s.auth && !s.configured) {
+          $("#login").classList.add("hidden");
+          $("#loading").classList.remove("hidden");
+          $("#loading span").textContent = "Login non configurato: su Vercel serve SESSION_SECRET di almeno 32 caratteri.";
+        }
+      } catch (err) { $("#login .err").textContent = err.message; }
+    }
+  } finally {
+    refreshing = false;
+    $("#retry").disabled = false;
+    $("#retry").classList.remove("hidden");
   }
-})();
+}
+$("#retry").onclick = refreshDashboard;
+window.addEventListener("online", () => { if (stale) refreshDashboard(); });
+window.addEventListener("pageshow", event => {
+  if (event.persisted && D) {
+    if (D.auth_required && !dashboardSnapshot.read()) { showLogin(); return; }
+    stale = true; syncStatus("Aggiornamento…"); refreshDashboard();
+  }
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !D) return;
+  if (D.auth_required && dashboardSnapshot.session() !== activeSession) { showLogin(false); return; }
+  stale = true; syncStatus("Aggiornamento…"); refreshDashboard();
+});
+applyScheme();
+const saved = dashboardSnapshot.read();
+if (saved) {
+  try {
+    D = saved.data; activeSession = dashboardSnapshot.session(); stale = true;
+    render();
+    $("#logout").classList.remove("hidden");
+    syncStatus("Ultimi dati salvati · aggiornamento…");
+  } catch (_) { showLogin(); $("#login").classList.add("hidden"); $("#loading").classList.remove("hidden"); }
+}
+refreshDashboard();
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
 </script>
 </body>
 </html>

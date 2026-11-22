@@ -53,7 +53,7 @@ def test_remember_me_sets_persistent_cookie(client):
     res = client.post("/api/register", json={"email": "a@esempio.it", "password": "password-a", "remember": True})
     assert "Max-Age=7776000" in res.headers["set-cookie"]
     res = client.post("/api/login", json={"email": "a@esempio.it", "password": "password-a", "remember": False})
-    assert "Max-Age" not in res.headers["set-cookie"]  # cookie di sessione: sparisce chiudendo il browser
+    assert "Max-Age" not in next(c for c in res.headers.get_list("set-cookie") if c.startswith("mt_session="))  # cookie di sessione
     assert client.get("/api/dashboard").status_code == 200
 
 
@@ -137,3 +137,34 @@ def test_dashboard_bootstrap_auth_state(client):
     assert response.headers["cache-control"] == "no-store"
     client.post("/api/logout")
     assert client.get("/api/dashboard").status_code == 401
+
+
+def test_snapshot_marker_is_bound_to_remembered_session(client):
+    import hashlib
+
+    login(client)
+    token = client.cookies.get("mt_session")
+    marker = client.cookies.get("mt_snapshot")
+    assert marker == hashlib.sha256(token.encode()).hexdigest()
+    # Il marcatore leggibile non è una credenziale di accesso.
+    client.cookies.delete("mt_session")
+    assert client.get("/api/dashboard").status_code == 401
+    assert client.cookies.get("mt_snapshot") == marker
+    login(client)
+    client.cookies.delete("mt_snapshot")  # upgrade di una sessione già esistente
+    assert client.get("/api/dashboard").status_code == 200
+    assert client.cookies.get("mt_snapshot")
+    client.post("/api/logout")
+    assert not client.cookies.get("mt_snapshot")
+    assert not client.cookies.get("mt_session")
+
+
+def test_snapshot_marker_disabled_without_remember_and_rotates_for_accounts(client):
+    login(client)
+    first = client.cookies.get("mt_snapshot")
+    login(client, email="bruno@esempio.it", password="password-bruno")
+    assert client.cookies.get("mt_snapshot") != first
+    client.post("/api/login", json={"email": "bruno@esempio.it", "password": "password-bruno", "remember": False})
+    assert not client.cookies.get("mt_snapshot")
+    assert client.get("/api/dashboard").status_code == 200
+    assert not client.cookies.get("mt_snapshot")

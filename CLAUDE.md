@@ -55,3 +55,12 @@ Tutorial passo passo per l'utente: [DEPLOY.md](DEPLOY.md). In breve:
    client_secret = "..."
    server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
    ```
+
+
+## Apertura dalla Home e copia locale
+
+La PWA usa `public/sw.js` per precaricare esclusivamente l’interfaccia pubblica (HTML, script, font, immagini). Grafici e font sono in `public/vendor/` con le licenze. Le API restano sempre in rete con `Cache-Control: no-store`. Incrementare `SHELL` in `sw.js` quando cambia un file precaricato: il nuovo worker si attiva dopo la chiusura delle finestre precedenti.
+
+Con Ricordami, `mt_snapshot` è un’impronta SHA-256 della sessione, leggibile da JS ma inutilizzabile come credenziale; la vera sessione resta HttpOnly. `public/snapshot.js` salva l’ultima dashboard in localStorage, legata a questa impronta, per massimo sette giorni. Alla riapertura mostra la copia in sola lettura durante l’aggiornamento. Login rifiutato, uscita, assenza del marcatore e cambio sessione eliminano la copia; l’uscita si propaga alle altre finestre. Senza Ricordami e in locale senza login la dashboard non viene salvata. Le operazioni offline non sono supportate.
+
+Verifica PWA: `node --test code/money-tracker/tests/test_pwa.cjs` dalla root del monorepo, oltre ai test Python. Per test browser usare un DB temporaneo, mai dati reali.
